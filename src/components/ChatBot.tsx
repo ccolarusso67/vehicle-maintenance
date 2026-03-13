@@ -624,10 +624,10 @@ export default function ChatBot() {
   // When in iframe, use absolute positioning based on visible viewport area
   const useIframePos = isInIframe && visibleBottom !== null;
   const posStyle = useIframePos
-    ? { position: 'absolute' as const, top: visibleBottom - 80, right: 24 }
+    ? { position: 'absolute' as const, top: visibleBottom - 140, right: 24 }
     : undefined;
   const chatPosStyle = useIframePos
-    ? { position: 'absolute' as const, top: visibleBottom - 80 - 16 - 560, right: 24, height: '560px' }
+    ? { position: 'absolute' as const, top: visibleBottom - 140 - 16 - 560, right: 24, height: '560px' }
     : { height: 'min(560px, calc(100vh - 8rem))' };
   const posClass = useIframePos ? '' : 'fixed bottom-6 right-6';
   const chatPosClass = useIframePos ? '' : 'fixed bottom-24 right-6';
