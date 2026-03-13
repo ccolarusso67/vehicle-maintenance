@@ -64,11 +64,11 @@ export default function Home() {
     let lastHeight = 0;
 
     function sendHeight() {
-      // Measure the main content wrapper, not scrollHeight (which includes
-      // absolutely-positioned sentinel elements from ChatBot and causes a feedback loop)
-      const wrapper = document.getElementById('app-root');
-      if (!wrapper) return;
-      const height = wrapper.getBoundingClientRect().height;
+      // Measure up to the content-end marker, which sits right after the footer
+      // but before ChatBot (whose sentinel elements inflate the page height)
+      const marker = document.getElementById('content-end');
+      if (!marker) return;
+      const height = marker.getBoundingClientRect().top + window.scrollY;
       // Only send if height actually changed (avoid feedback loops)
       if (Math.abs(height - lastHeight) > 2) {
         lastHeight = height;
@@ -313,6 +313,7 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      <div id="content-end" />
 
       <ChatBot />
     </div>
