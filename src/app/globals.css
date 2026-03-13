@@ -14,8 +14,8 @@
   --color-sale-green: #61ca70;
 }
 
-body {
-  background: #ffffff;
+html, body {
+  background: #000000;
   font-family: var(--font-sans);
   color: #333333;
 }
