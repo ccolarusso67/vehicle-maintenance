@@ -106,7 +106,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div id="app-root" className="bg-black flex flex-col">
+    <div id="app-root" className="bg-white flex flex-col">
       <Header />
 
       <main className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 w-full flex-1 bg-white">
