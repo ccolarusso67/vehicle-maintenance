@@ -97,7 +97,6 @@ function TypingIndicator() {
 }
 
 export default function ChatBot() {
-  if (typeof window !== 'undefined' && window.top !== window.self) return null;
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
