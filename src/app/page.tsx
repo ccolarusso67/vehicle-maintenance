@@ -69,10 +69,10 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-black flex flex-col">
       <Header />
 
-      <main className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 w-full flex-1">
+      <main className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 w-full flex-1 bg-white">
         <VehicleSelector
           onSelect={handleVehicleSelect}
           initialMake={urlParams.make}
