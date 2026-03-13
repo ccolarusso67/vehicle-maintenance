@@ -61,13 +61,23 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === 'undefined' || window.top === window.self) return;
 
+    let lastHeight = 0;
+
     function sendHeight() {
-      const height = document.documentElement.scrollHeight;
-      window.parent.postMessage({ type: 'u1p-resize', height }, '*');
+      // Measure the main content wrapper, not scrollHeight (which includes
+      // absolutely-positioned sentinel elements from ChatBot and causes a feedback loop)
+      const wrapper = document.getElementById('app-root');
+      if (!wrapper) return;
+      const height = wrapper.getBoundingClientRect().height;
+      // Only send if height actually changed (avoid feedback loops)
+      if (Math.abs(height - lastHeight) > 2) {
+        lastHeight = height;
+        window.parent.postMessage({ type: 'u1p-resize', height: Math.ceil(height) }, '*');
+      }
     }
 
     // Send initial height after content loads
-    sendHeight();
+    setTimeout(sendHeight, 100);
 
     // Watch for DOM changes that affect height (vehicle selection, dropdowns, etc.)
     const observer = new MutationObserver(() => {
@@ -96,7 +106,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="bg-black flex flex-col">
+    <div id="app-root" className="bg-black flex flex-col">
       <Header />
 
       <main className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 w-full flex-1 bg-white">
