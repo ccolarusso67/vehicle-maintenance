@@ -99,32 +99,46 @@ function TypingIndicator() {
 export default function ChatBot() {
   const isInIframe = typeof window !== 'undefined' && window.top !== window.self;
   const [open, setOpen] = useState(false);
-  const [iframeBottom, setIframeBottom] = useState<number | null>(null);
+  const [visibleBottom, setVisibleBottom] = useState<number | null>(null);
 
-  // In an iframe, position:fixed is relative to the iframe viewport (the full iframe height),
-  // not the visible screen area. Use visualViewport to track the visible area and
-  // absolutely position Enzo where the user can see it.
+  // In an iframe, position:fixed is relative to the full iframe height (e.g. 2200px),
+  // not the visible screen area. The parent page scrolls over the iframe.
+  // Use IntersectionObserver on sentinel elements to detect which part of the
+  // iframe is currently visible, then absolutely position Enzo there.
   useEffect(() => {
     if (!isInIframe) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
 
-    const update = () => {
-      // vv.offsetTop = how far down the visible area starts within the iframe
-      // vv.height = height of the visible area
-      setIframeBottom(vv.offsetTop + vv.height);
-    };
+    const STEP = 50;
+    const totalHeight = Math.max(document.documentElement.scrollHeight, 3000);
+    const container = document.createElement('div');
+    container.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:0;pointer-events:none;z-index:-1;overflow:visible;';
+    document.body.appendChild(container);
 
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    // Also poll since parent-driven scrolling may not fire iframe viewport events
-    const interval = setInterval(update, 150);
-    update();
+    const sentinels: HTMLDivElement[] = [];
+    for (let y = 0; y <= totalHeight; y += STEP) {
+      const s = document.createElement('div');
+      s.style.cssText = `position:absolute;top:${y}px;left:0;width:1px;height:1px;`;
+      s.dataset.y = String(y);
+      container.appendChild(s);
+      sentinels.push(s);
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      let maxY = 0;
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const y = parseInt((e.target as HTMLElement).dataset.y || '0');
+          if (y > maxY) maxY = y;
+        }
+      });
+      if (maxY > 0) setVisibleBottom(maxY + STEP);
+    }, { threshold: 0 });
+
+    sentinels.forEach(s => observer.observe(s));
 
     return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
-      clearInterval(interval);
+      observer.disconnect();
+      container.remove();
     };
   }, [isInIframe]);
   const [messages, setMessages] = useState<Message[]>([
@@ -601,14 +615,15 @@ export default function ChatBot() {
   };
 
   // When in iframe, use absolute positioning based on visible viewport area
-  const posStyle = isInIframe && iframeBottom !== null
-    ? { position: 'absolute' as const, top: iframeBottom - 24 - 56, right: 24 }
+  const useIframePos = isInIframe && visibleBottom !== null;
+  const posStyle = useIframePos
+    ? { position: 'absolute' as const, top: visibleBottom - 80, right: 24 }
     : undefined;
-  const chatPosStyle = isInIframe && iframeBottom !== null
-    ? { position: 'absolute' as const, top: iframeBottom - 24 - 56 - 16 - 560, right: 24, height: 'min(560px, 560px)' }
+  const chatPosStyle = useIframePos
+    ? { position: 'absolute' as const, top: visibleBottom - 80 - 16 - 560, right: 24, height: '560px' }
     : { height: 'min(560px, calc(100vh - 8rem))' };
-  const posClass = isInIframe && iframeBottom !== null ? '' : 'fixed bottom-6 right-6';
-  const chatPosClass = isInIframe && iframeBottom !== null ? '' : 'fixed bottom-24 right-6';
+  const posClass = useIframePos ? '' : 'fixed bottom-6 right-6';
+  const chatPosClass = useIframePos ? '' : 'fixed bottom-24 right-6';
 
   return (
     <>
