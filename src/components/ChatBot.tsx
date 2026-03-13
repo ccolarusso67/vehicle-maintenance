@@ -111,7 +111,7 @@ export default function ChatBot() {
     const STEP = 50;
     const totalHeight = Math.max(document.documentElement.scrollHeight, 3000);
     const container = document.createElement('div');
-    container.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:0;pointer-events:none;z-index:-1;overflow:visible;';
+    container.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:0;pointer-events:none;z-index:-1;overflow:visible;';
     document.body.appendChild(container);
 
     const sentinels: HTMLDivElement[] = [];
