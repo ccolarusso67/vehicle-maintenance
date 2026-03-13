@@ -5,8 +5,9 @@ import { useState } from 'react';
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const isInIframe = typeof window !== 'undefined' && window.top !== window.self;
-  const linkTarget = isInIframe ? '_top' : '_self';
+  // Always use _top so external links escape the iframe.
+  // _top behaves identically to _self when not in an iframe.
+  const linkTarget = '_top';
 
   const navLinks = [
     { label: 'Home', href: 'https://ultra1plus.com' },
