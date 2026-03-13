@@ -97,7 +97,36 @@ function TypingIndicator() {
 }
 
 export default function ChatBot() {
+  const isInIframe = typeof window !== 'undefined' && window.top !== window.self;
   const [open, setOpen] = useState(false);
+  const [iframeBottom, setIframeBottom] = useState<number | null>(null);
+
+  // In an iframe, position:fixed is relative to the iframe viewport (the full iframe height),
+  // not the visible screen area. Use visualViewport to track the visible area and
+  // absolutely position Enzo where the user can see it.
+  useEffect(() => {
+    if (!isInIframe) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const update = () => {
+      // vv.offsetTop = how far down the visible area starts within the iframe
+      // vv.height = height of the visible area
+      setIframeBottom(vv.offsetTop + vv.height);
+    };
+
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    // Also poll since parent-driven scrolling may not fire iframe viewport events
+    const interval = setInterval(update, 150);
+    update();
+
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      clearInterval(interval);
+    };
+  }, [isInIframe]);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'bot',
@@ -571,13 +600,24 @@ export default function ChatBot() {
     handleSend(value);
   };
 
+  // When in iframe, use absolute positioning based on visible viewport area
+  const posStyle = isInIframe && iframeBottom !== null
+    ? { position: 'absolute' as const, top: iframeBottom - 24 - 56, right: 24 }
+    : undefined;
+  const chatPosStyle = isInIframe && iframeBottom !== null
+    ? { position: 'absolute' as const, top: iframeBottom - 24 - 56 - 16 - 560, right: 24, height: 'min(560px, 560px)' }
+    : { height: 'min(560px, calc(100vh - 8rem))' };
+  const posClass = isInIframe && iframeBottom !== null ? '' : 'fixed bottom-6 right-6';
+  const chatPosClass = isInIframe && iframeBottom !== null ? '' : 'fixed bottom-24 right-6';
+
   return (
     <>
       {/* Chat toggle button */}
       {open ? (
         <button
           onClick={() => setOpen(false)}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#FFC700] hover:bg-[#e6b400] text-black rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
+          className={`${posClass} z-50 w-14 h-14 bg-[#FFC700] hover:bg-[#e6b400] text-black rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105`}
+          style={posStyle}
           aria-label="Close chat"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -587,8 +627,9 @@ export default function ChatBot() {
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-black border-2 border-red-600 text-white
-            pl-5 pr-6 py-3 rounded-full shadow-2xl hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all hover:scale-105 group enzo-flash"
+          className={`${posClass} z-50 flex items-center gap-3 bg-black border-2 border-red-600 text-white
+            pl-5 pr-6 py-3 rounded-full shadow-2xl hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all hover:scale-105 group enzo-flash`}
+          style={posStyle}
           aria-label="Open Enzo maintenance assistant"
         >
           <div className="w-10 h-10 bg-[#FFC700] rounded-full flex items-center justify-center flex-shrink-0">
@@ -603,8 +644,8 @@ export default function ChatBot() {
 
       {/* Chat window */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[400px] max-w-[calc(100vw-2rem)] bg-black border-2 border-[#FFC700] shadow-2xl animate-slide-up flex flex-col"
-          style={{ height: 'min(560px, calc(100vh - 8rem))' }}
+        <div className={`${chatPosClass} z-50 w-[400px] max-w-[calc(100vw-2rem)] bg-black border-2 border-[#FFC700] shadow-2xl animate-slide-up flex flex-col`}
+          style={chatPosStyle}
         >
           {/* Header */}
           <div className="bg-black px-4 py-3 border-b border-[#FFC700]/30 flex items-center gap-3 flex-shrink-0">
