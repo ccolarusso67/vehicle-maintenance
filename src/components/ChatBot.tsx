@@ -123,15 +123,22 @@ export default function ChatBot() {
       sentinels.push(s);
     }
 
+    // Track ALL currently-visible sentinels so we always know the full visible range
+    const visibleSet = new Set<number>();
+
     const observer = new IntersectionObserver((entries) => {
-      let maxY = 0;
       entries.forEach(e => {
+        const y = parseInt((e.target as HTMLElement).dataset.y || '0');
         if (e.isIntersecting) {
-          const y = parseInt((e.target as HTMLElement).dataset.y || '0');
-          if (y > maxY) maxY = y;
+          visibleSet.add(y);
+        } else {
+          visibleSet.delete(y);
         }
       });
-      if (maxY > 0) setVisibleBottom(maxY + STEP);
+      if (visibleSet.size > 0) {
+        const maxY = Math.max(...visibleSet);
+        setVisibleBottom(maxY + STEP);
+      }
     }, { threshold: 0 });
 
     sentinels.forEach(s => observer.observe(s));
