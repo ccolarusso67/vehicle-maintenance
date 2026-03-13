@@ -57,6 +57,33 @@ export default function Home() {
       .catch(console.error);
   }, []);
 
+  // Send content height to parent page so it can resize the iframe dynamically
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.top === window.self) return;
+
+    function sendHeight() {
+      const height = document.documentElement.scrollHeight;
+      window.parent.postMessage({ type: 'u1p-resize', height }, '*');
+    }
+
+    // Send initial height after content loads
+    sendHeight();
+
+    // Watch for DOM changes that affect height (vehicle selection, dropdowns, etc.)
+    const observer = new MutationObserver(() => {
+      requestAnimationFrame(sendHeight);
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+
+    // Also send on resize
+    window.addEventListener('resize', sendHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', sendHeight);
+    };
+  }, []);
+
   // Update URL when vehicle changes — clean slugs, no special characters
   const handleVehicleSelect = useCallback((v: SelectedVehicle | null) => {
     setVehicle(v);
