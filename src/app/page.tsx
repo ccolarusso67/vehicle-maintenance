@@ -299,7 +299,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="bg-black text-white mt-0">
+      <footer className="bg-black text-white mt-auto">
         <div className="h-[3px] bg-[#FFC700]" />
         <div className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
