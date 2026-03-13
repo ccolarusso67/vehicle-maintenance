@@ -19,6 +19,7 @@ html, body {
   font-family: var(--font-sans);
   color: #333333;
   margin: 0;
+  height: 100%;
 }
 
 /* Ultra1Plus diagonal clip-path button style */
