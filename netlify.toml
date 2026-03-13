@@ -1,6 +1,10 @@
 [build]
   publish = "out"
   command = "npm run build"
+
+[build.environment]
+  # Skip the auto-installed Next.js plugin since we use static export (output: "export")
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
 [[headers]]
   for = "/data/*"
   [headers.values]
