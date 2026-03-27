@@ -10,7 +10,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
-const BASE_URL = 'https://vehicle-maintenance.ultra1plus.com';
+const BASE_URL = 'https://ultra1plus.com/vehicle-maintenance-guide';
 const PUBLIC_DIR = join(process.cwd(), 'public');
 const DATA_DIR = join(PUBLIC_DIR, 'data');
 

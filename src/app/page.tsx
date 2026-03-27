@@ -34,7 +34,7 @@ function toSlug(str: string): string {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function buildJsonLd(vehicle: SelectedVehicle | null): Record<string, any>[] {
-  const baseUrl = 'https://vehicle-maintenance.ultra1plus.com';
+  const baseUrl = 'https://ultra1plus.com/vehicle-maintenance-guide';
 
   const schemas: Record<string, any>[] = [
     {

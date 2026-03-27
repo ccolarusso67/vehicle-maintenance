@@ -3,7 +3,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://vehicle-maintenance.ultra1plus.com'),
+  metadataBase: new URL('https://ultra1plus.com/vehicle-maintenance-guide'),
   title: {
     template: '%s | Ultra1Plus Vehicle Maintenance Guide',
     default: 'Vehicle Maintenance Guide | Ultra1Plus\u2122',
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
       'Look up the right fluids, capacities, and maintenance schedules for your car, motorcycle, or marine engine. Premium lubricants by Ultra1Plus.',
     type: 'website',
     siteName: 'Ultra1Plus Vehicle Maintenance Guide',
-    url: 'https://vehicle-maintenance.ultra1plus.com',
+    url: 'https://ultra1plus.com/vehicle-maintenance-guide',
     images: [
       {
         url: 'https://cdn11.bigcommerce.com/s-w94u0bjkb6/images/stencil/original/recurso_1_1757027375__15872.original.png',
