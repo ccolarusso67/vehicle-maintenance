@@ -14,12 +14,10 @@
   --color-sale-green: #61ca70;
 }
 
-html, body {
-  background: #ffffff !important;
+body {
+  background: #ffffff;
   font-family: var(--font-sans);
   color: #333333;
-  margin: 0;
-  height: 100%;
 }
 
 /* Ultra1Plus diagonal clip-path button style */

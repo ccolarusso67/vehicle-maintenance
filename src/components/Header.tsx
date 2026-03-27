@@ -5,12 +5,7 @@ import { useState } from 'react';
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Always use _top so external links escape the iframe.
-  // _top behaves identically to _self when not in an iframe.
-  const linkTarget = '_top';
-
   const navLinks = [
-    { label: 'Home', href: 'https://ultra1plus.com' },
     { label: 'Shop', href: 'https://ultra1plus.com' },
     { label: 'Blog', href: 'https://ultra1plus.com/blog/' },
   ];
@@ -21,7 +16,7 @@ export default function Header() {
         {/* Top bar */}
         <div className="flex items-center justify-between py-4">
           {/* Logo */}
-          <a href="https://ultra1plus.com" target={linkTarget}>
+          <a href="https://ultra1plus.com">
             <img
               src="https://cdn11.bigcommerce.com/s-w94u0bjkb6/images/stencil/original/recurso_1_1757027375__15872.original.png"
               alt="Ultra1Plus™ Premium Quality Oils"
@@ -35,7 +30,6 @@ export default function Header() {
               <a
                 key={link.label}
                 href={link.href}
-                target={linkTarget}
                 className="text-sm font-medium text-gray-300 hover:text-[#FFC700] transition-colors uppercase tracking-wide"
               >
                 {link.label}
@@ -68,7 +62,6 @@ export default function Header() {
               <a
                 key={link.label}
                 href={link.href}
-                target={linkTarget}
                 className="px-6 py-3.5 text-sm font-medium text-gray-300 hover:text-[#FFC700] hover:bg-gray-900 transition-colors uppercase tracking-wide"
               >
                 {link.label}

@@ -5,7 +5,7 @@ import Header from '@/components/Header';
 import VehicleSelector from '@/components/VehicleSelector';
 import FluidCard from '@/components/FluidCard';
 import ChatBot from '@/components/ChatBot';
-import { VehicleType, MakeIndex } from '@/data/types';
+import { VehicleType, MakeIndex, VehicleDomain, VEHICLE_DOMAINS, domainDataPath } from '@/data/types';
 
 interface SelectedVehicle {
   make: string;
@@ -44,54 +44,24 @@ function getUrlParams(): { make: string; model: string; type: string } {
 
 export default function Home() {
   const [vehicle, setVehicle] = useState<SelectedVehicle | null>(null);
+  const [domain, setDomain] = useState<VehicleDomain>('automotive');
   const [stats, setStats] = useState({ makes: 0, models: 0 });
   const [urlParams] = useState(getUrlParams);
 
   useEffect(() => {
-    fetch('/data/index.json')
+    fetch(domainDataPath(domain) + 'index.json')
       .then(r => r.json())
       .then((makes: MakeIndex[]) => {
         const totalModels = makes.reduce((sum, m) => sum + m.models, 0);
         setStats({ makes: makes.length, models: totalModels });
       })
       .catch(console.error);
-  }, []);
+  }, [domain]);
 
-  // Send content height to parent page so it can resize the iframe dynamically
-  useEffect(() => {
-    if (typeof window === 'undefined' || window.top === window.self) return;
-
-    let lastHeight = 0;
-
-    function sendHeight() {
-      // Measure up to the content-end marker, which sits right after the footer
-      // but before ChatBot (whose sentinel elements inflate the page height)
-      const marker = document.getElementById('content-end');
-      if (!marker) return;
-      const height = marker.getBoundingClientRect().top + window.scrollY;
-      // Only send if height actually changed (avoid feedback loops)
-      if (Math.abs(height - lastHeight) > 2) {
-        lastHeight = height;
-        window.parent.postMessage({ type: 'u1p-resize', height: Math.ceil(height) }, '*');
-      }
-    }
-
-    // Send initial height after content loads
-    setTimeout(sendHeight, 100);
-
-    // Watch for DOM changes that affect height (vehicle selection, dropdowns, etc.)
-    const observer = new MutationObserver(() => {
-      requestAnimationFrame(sendHeight);
-    });
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
-
-    // Also send on resize
-    window.addEventListener('resize', sendHeight);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', sendHeight);
-    };
+  const handleDomainChange = useCallback((d: VehicleDomain) => {
+    setDomain(d);
+    setVehicle(null);
+    window.history.replaceState({}, '', '/');
   }, []);
 
   // Update URL when vehicle changes — clean slugs, no special characters
@@ -106,11 +76,29 @@ export default function Home() {
   }, []);
 
   return (
-    <div id="app-root" className="bg-white flex flex-col min-h-full">
+    <div className="min-h-screen bg-white">
       <Header />
 
-      <main className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 w-full flex-1 bg-white">
+      <main className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Domain Selector */}
+        <div className="flex items-center gap-2">
+          {VEHICLE_DOMAINS.map(d => (
+            <button
+              key={d.id}
+              onClick={() => handleDomainChange(d.id)}
+              className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wide border-2 transition-all
+                ${domain === d.id
+                  ? 'bg-black text-[#FFC700] border-[#FFC700]'
+                  : 'bg-white text-[#888] border-[#DFDFDF] hover:border-[#FFC700]/50 hover:text-black'
+                }`}
+            >
+              {d.icon} {d.label}
+            </button>
+          ))}
+        </div>
+
         <VehicleSelector
+          domain={domain}
           onSelect={handleVehicleSelect}
           initialMake={urlParams.make}
           initialModel={urlParams.model}
@@ -299,7 +287,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="bg-black text-white mt-auto">
+      <footer className="bg-black text-white mt-0">
         <div className="h-[3px] bg-[#FFC700]" />
         <div className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -313,9 +301,8 @@ export default function Home() {
           </div>
         </div>
       </footer>
-      <div id="content-end" />
 
-      <ChatBot />
+      <ChatBot domain={domain} onDomainChange={handleDomainChange} />
     </div>
   );
 }

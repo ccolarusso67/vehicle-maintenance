@@ -1,0 +1,504 @@
+{
+  "merged_at": "2026-03-27T16:06:28.057754+00:00",
+  "fitment_makes": 3,
+  "legacy_makes": 73,
+  "total_makes": 76,
+  "fitment_entries": [
+    {
+      "name": "Ford",
+      "id": "ford",
+      "models": 7,
+      "source": "fitment"
+    },
+    {
+      "name": "Honda",
+      "id": "honda",
+      "models": 7,
+      "source": "fitment"
+    },
+    {
+      "name": "Toyota",
+      "id": "toyota",
+      "models": 7,
+      "source": "fitment"
+    }
+  ],
+  "legacy_entries": [
+    {
+      "name": "Abarth",
+      "id": "abarth",
+      "models": 8,
+      "source": "legacy"
+    },
+    {
+      "name": "Acura",
+      "id": "acura",
+      "models": 34,
+      "source": "legacy"
+    },
+    {
+      "name": "Aiways",
+      "id": "aiways",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "Alfa Romeo",
+      "id": "alfa_romeo",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
+      "name": "Alpine",
+      "id": "alpine",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "Aro",
+      "id": "aro",
+      "models": 2,
+      "source": "legacy"
+    },
+    {
+      "name": "Asia",
+      "id": "asia",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "Aston Martin",
+      "id": "aston_martin",
+      "models": 19,
+      "source": "legacy"
+    },
+    {
+      "name": "Audi",
+      "id": "audi",
+      "models": 93,
+      "source": "legacy"
+    },
+    {
+      "name": "Austin",
+      "id": "austin",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "BMW",
+      "id": "bmw",
+      "models": 88,
+      "source": "legacy"
+    },
+    {
+      "name": "BYD",
+      "id": "byd",
+      "models": 2,
+      "source": "legacy"
+    },
+    {
+      "name": "Bentley",
+      "id": "bentley",
+      "models": 18,
+      "source": "legacy"
+    },
+    {
+      "name": "Brabus",
+      "id": "brabus",
+      "models": 8,
+      "source": "legacy"
+    },
+    {
+      "name": "Bugatti",
+      "id": "bugatti",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "Buick",
+      "id": "buick",
+      "models": 28,
+      "source": "legacy"
+    },
+    {
+      "name": "Cadillac",
+      "id": "cadillac",
+      "models": 26,
+      "source": "legacy"
+    },
+    {
+      "name": "Chery",
+      "id": "chery",
+      "models": 15,
+      "source": "legacy"
+    },
+    {
+      "name": "Chevrolet",
+      "id": "chevrolet",
+      "models": 80,
+      "source": "legacy"
+    },
+    {
+      "name": "Chrysler",
+      "id": "chrysler",
+      "models": 23,
+      "source": "legacy"
+    },
+    {
+      "name": "Cupra",
+      "id": "cupra",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "DR",
+      "id": "dr",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
+      "name": "DS",
+      "id": "ds",
+      "models": 7,
+      "source": "legacy"
+    },
+    {
+      "name": "Dacia",
+      "id": "dacia",
+      "models": 16,
+      "source": "legacy"
+    },
+    {
+      "name": "Daihatsu",
+      "id": "daihatsu",
+      "models": 20,
+      "source": "legacy"
+    },
+    {
+      "name": "Daimler",
+      "id": "daimler",
+      "models": 3,
+      "source": "legacy"
+    },
+    {
+      "name": "Dodge",
+      "id": "dodge",
+      "models": 32,
+      "source": "legacy"
+    },
+    {
+      "name": "FSO",
+      "id": "fso",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "Ferrari",
+      "id": "ferrari",
+      "models": 39,
+      "source": "legacy"
+    },
+    {
+      "name": "Fiat",
+      "id": "fiat",
+      "models": 8,
+      "source": "legacy"
+    },
+    {
+      "name": "Fisker",
+      "id": "fisker",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "GAZ",
+      "id": "gaz",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "GMC",
+      "id": "gmc",
+      "models": 15,
+      "source": "legacy"
+    },
+    {
+      "name": "Galloper",
+      "id": "galloper",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "Genesis",
+      "id": "genesis",
+      "models": 12,
+      "source": "legacy"
+    },
+    {
+      "name": "Hongqi",
+      "id": "hongqi",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "Hummer",
+      "id": "hummer",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "Hyundai",
+      "id": "hyundai",
+      "models": 50,
+      "source": "legacy"
+    },
+    {
+      "name": "INFINITI",
+      "id": "infiniti",
+      "models": 31,
+      "source": "legacy"
+    },
+    {
+      "name": "Isuzu",
+      "id": "isuzu",
+      "models": 2,
+      "source": "legacy"
+    },
+    {
+      "name": "Iveco",
+      "id": "iveco",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "Jaguar",
+      "id": "jaguar",
+      "models": 16,
+      "source": "legacy"
+    },
+    {
+      "name": "Jeep",
+      "id": "jeep",
+      "models": 27,
+      "source": "legacy"
+    },
+    {
+      "name": "Kia",
+      "id": "kia",
+      "models": 53,
+      "source": "legacy"
+    },
+    {
+      "name": "LEVC",
+      "id": "levc",
+      "models": 2,
+      "source": "legacy"
+    },
+    {
+      "name": "Lagonda",
+      "id": "lagonda",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "Lamborghini",
+      "id": "lamborghini",
+      "models": 18,
+      "source": "legacy"
+    },
+    {
+      "name": "Lancia",
+      "id": "lancia",
+      "models": 20,
+      "source": "legacy"
+    },
+    {
+      "name": "Land Rover",
+      "id": "land_rover",
+      "models": 26,
+      "source": "legacy"
+    },
+    {
+      "name": "Landwind",
+      "id": "landwind",
+      "models": 2,
+      "source": "legacy"
+    },
+    {
+      "name": "Lexus",
+      "id": "lexus",
+      "models": 47,
+      "source": "legacy"
+    },
+    {
+      "name": "Lincoln",
+      "id": "lincoln",
+      "models": 23,
+      "source": "legacy"
+    },
+    {
+      "name": "Lotus",
+      "id": "lotus",
+      "models": 10,
+      "source": "legacy"
+    },
+    {
+      "name": "MINI",
+      "id": "mini",
+      "models": 20,
+      "source": "legacy"
+    },
+    {
+      "name": "Maserati",
+      "id": "maserati",
+      "models": 16,
+      "source": "legacy"
+    },
+    {
+      "name": "Mazda",
+      "id": "mazda",
+      "models": 35,
+      "source": "legacy"
+    },
+    {
+      "name": "McLaren",
+      "id": "mclaren",
+      "models": 11,
+      "source": "legacy"
+    },
+    {
+      "name": "Mercedes-Benz",
+      "id": "mercedes-benz",
+      "models": 72,
+      "source": "legacy"
+    },
+    {
+      "name": "Mercury",
+      "id": "mercury",
+      "models": 3,
+      "source": "legacy"
+    },
+    {
+      "name": "Mitsubishi",
+      "id": "mitsubishi",
+      "models": 29,
+      "source": "legacy"
+    },
+    {
+      "name": "Nissan",
+      "id": "nissan",
+      "models": 71,
+      "source": "legacy"
+    },
+    {
+      "name": "Oldsmobile",
+      "id": "oldsmobile",
+      "models": 13,
+      "source": "legacy"
+    },
+    {
+      "name": "Polestar",
+      "id": "polestar",
+      "models": 6,
+      "source": "legacy"
+    },
+    {
+      "name": "Pontiac",
+      "id": "pontiac",
+      "models": 16,
+      "source": "legacy"
+    },
+    {
+      "name": "Porsche",
+      "id": "porsche",
+      "models": 15,
+      "source": "legacy"
+    },
+    {
+      "name": "Ram",
+      "id": "ram",
+      "models": 6,
+      "source": "legacy"
+    },
+    {
+      "name": "Rolls-Royce",
+      "id": "rolls-royce",
+      "models": 15,
+      "source": "legacy"
+    },
+    {
+      "name": "Saturn",
+      "id": "saturn",
+      "models": 10,
+      "source": "legacy"
+    },
+    {
+      "name": "Scion",
+      "id": "scion",
+      "models": 11,
+      "source": "legacy"
+    },
+    {
+      "name": "Subaru",
+      "id": "subaru",
+      "models": 29,
+      "source": "legacy"
+    },
+    {
+      "name": "Tesla",
+      "id": "tesla",
+      "models": 7,
+      "source": "legacy"
+    },
+    {
+      "name": "Volkswagen",
+      "id": "volkswagen",
+      "models": 78,
+      "source": "legacy"
+    },
+    {
+      "name": "Volvo",
+      "id": "volvo",
+      "models": 30,
+      "source": "legacy"
+    }
+  ],
+  "created_files": [
+    "acura.json",
+    "alfa_romeo.json",
+    "audi.json",
+    "bmw.json",
+    "buick.json",
+    "cadillac.json",
+    "chevrolet.json",
+    "chrysler.json",
+    "dodge.json",
+    "fiat.json",
+    "genesis.json",
+    "gmc.json",
+    "hummer.json",
+    "hyundai.json",
+    "infiniti.json",
+    "jaguar.json",
+    "jeep.json",
+    "kia.json",
+    "land_rover.json",
+    "lexus.json",
+    "mazda.json",
+    "mercedes-benz.json",
+    "mini.json",
+    "mitsubishi.json",
+    "nissan.json",
+    "oldsmobile.json",
+    "polestar.json",
+    "pontiac.json",
+    "porsche.json",
+    "saturn.json",
+    "scion.json",
+    "subaru.json",
+    "tesla.json",
+    "volkswagen.json",
+    "volvo.json"
+  ],
+  "fitment_index_backup": "index.fitment.json"
+}

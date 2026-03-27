@@ -1,9 +1,7 @@
 [build]
+  publish = "out"
   command = "npm run build"
 
-[[headers]]
-  for = "/data/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET"
-    Access-Control-Allow-Headers = "Content-Type"
+[build.environment]
+  # Skip the auto-installed Next.js plugin since we use static export (output: "export")
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"

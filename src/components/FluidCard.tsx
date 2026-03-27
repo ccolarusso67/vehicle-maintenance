@@ -6,55 +6,53 @@ interface Props {
   fluid: FluidSpec;
 }
 
-/** Convert "Capacity X.X litre" to include quarts */
-function addQuarts(capacity: string): string {
-  const match = capacity.match(/(\d+(?:\.\d+)?)\s*litre/i);
-  if (!match) return capacity;
-  const liters = parseFloat(match[1]);
-  const quarts = (liters * 1.05669).toFixed(1);
-  return capacity.replace(
-    /(\d+(?:\.\d+)?)\s*litre/i,
-    `${match[1]} litre (${quarts} qt)`
-  );
-}
-
-/** Convert "X grams" to oz where useful */
-function addOz(capacity: string): string {
-  const match = capacity.match(/(\d+(?:-\d+)?)\s*grams/i);
-  if (!match) return capacity;
-  // If it's a range like "100-135 grams"
-  if (match[1].includes('-')) {
-    const [lo, hi] = match[1].split('-').map(Number);
-    const loOz = (lo * 0.03527396).toFixed(1);
-    const hiOz = (hi * 0.03527396).toFixed(1);
-    return capacity.replace(match[0], `${match[1]} g (${loOz}-${hiOz} oz)`);
-  }
-  const grams = parseInt(match[1]);
-  const oz = (grams * 0.03527396).toFixed(1);
-  return capacity.replace(match[0], `${match[1]} g (${oz} oz)`);
-}
-
-/** Convert km intervals to include miles */
-function addMiles(interval: string): string {
-  // Already has miles? skip
-  if (interval.includes('mile')) return interval;
-  const match = interval.match(/(\d+)\s*km/i);
-  if (!match) return interval;
-  const km = parseInt(match[1]);
-  const miles = Math.round(km * 0.621371);
-  const milesFormatted = miles >= 1000 ? `${(miles / 1000).toFixed(0)}k` : String(miles);
-  return interval.replace(
-    /(\d+)\s*km/i,
-    `${match[1]} km / ${milesFormatted} mi`
-  );
-}
-
+/** Convert liters to imperial (quarts or gallons) as primary display */
 function formatCapacity(c: string): string {
-  return addOz(addQuarts(c));
+  // Handle range patterns like "9-10 litre" first
+  let result = c.replace(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*litre/gi, (_match, lo, hi) => {
+    const loL = parseFloat(lo), hiL = parseFloat(hi);
+    if (hiL >= 3.785) {
+      return `${(loL / 3.785).toFixed(1)}-${(hiL / 3.785).toFixed(1)} gal`;
+    }
+    return `${(loL * 1.05669).toFixed(1)}-${(hiL * 1.05669).toFixed(1)} qt`;
+  });
+  // Convert single values: "X.X litre" → quarts/gallons
+  result = result.replace(/(\d+(?:\.\d+)?)\s*litre/gi, (_match, num) => {
+    const liters = parseFloat(num);
+    if (liters >= 3.785) {
+      return `${(liters / 3.785).toFixed(1)} gal`;
+    }
+    return `${(liters * 1.05669).toFixed(1)} qt`;
+  });
+  // Strip "Capacity " prefix — redundant with the "Cap." label
+  result = result.replace(/Capacity\s+/gi, '');
+  // Convert grams → oz
+  result = result.replace(/(\d+(?:-\d+)?)\s*grams?/gi, (_match, num) => {
+    if (num.includes('-')) {
+      const [lo, hi] = num.split('-').map(Number);
+      return `${(lo * 0.03527396).toFixed(1)}-${(hi * 0.03527396).toFixed(1)} oz`;
+    }
+    return `${(parseInt(num) * 0.03527396).toFixed(1)} oz`;
+  });
+  return result;
 }
 
+/** Convert intervals to miles-only display */
 function formatInterval(i: string): string {
-  return addMiles(i);
+  let result = i;
+  // Strip "Change " prefix — redundant with label
+  result = result.replace(/^Change\s+/i, '');
+  // If already in miles only, return as-is
+  if (result.includes('mile') && !result.includes('km')) return result;
+  // Convert km to miles, drop km portion
+  result = result.replace(/(\d+)\s*km/gi, (_match, num) => {
+    const km = parseInt(num);
+    const miles = Math.round(km * 0.621371);
+    return miles >= 1000 ? `${Math.round(miles / 1000)}k miles` : `${miles.toLocaleString()} miles`;
+  });
+  // Clean up any "/ " left from dual display
+  result = result.replace(/\s*\/\s*(?=\d+k?\s*mi)/g, '');
+  return result;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {

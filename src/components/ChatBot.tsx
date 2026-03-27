@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MakeIndex, MakeData, FluidSpec } from '@/data/types';
+import { MakeIndex, MakeData, FluidSpec, VehicleDomain, domainDataPath, DOMAIN_INTENT_KEYWORDS, DOMAIN_MAKE_HINTS, VEHICLE_DOMAINS } from '@/data/types';
 
 interface Message {
   role: 'bot' | 'user';
@@ -17,12 +17,14 @@ interface QuickButton {
 
 interface ConversationState {
   step: 'idle' | 'awaiting_make' | 'awaiting_model' | 'awaiting_type' | 'vehicle_selected';
+  activeDomain: VehicleDomain;
   makes: MakeIndex[];
   makeData: MakeData | null;
   selectedMake: string;
   selectedModel: string;
   selectedType: string;
   fluids: FluidSpec[];
+  dataSource: 'fitment' | 'legacy' | null;
 }
 
 // BigCommerce product URL mapping by SKU prefix
@@ -63,13 +65,78 @@ function cleanMakeName(name: string): string {
   return name.replace(/\s*\(.*\)$/, '');
 }
 
+// Source-aware response phrasing: fitment = confident, legacy = general guidance
+function fluidIntroText(source: 'fitment' | 'legacy' | null, makeName: string, modelName?: string): string {
+  const vehicle = modelName ? `${cleanMakeName(makeName)} ${modelName}` : cleanMakeName(makeName);
+  if (source === 'fitment') {
+    return `Here are the verified fluid specs for your ${vehicle}:`;
+  }
+  return `Here are the fluid specs we have on file for the ${vehicle}:`;
+}
+
+function fluidIntroHtml(source: 'fitment' | 'legacy' | null, makeName: string, modelName?: string): string {
+  return `<p class="font-medium mb-2">${fluidIntroText(source, makeName, modelName)}</p>`;
+}
+
+function fluidDisclaimer(source: 'fitment' | 'legacy' | null): string {
+  if (source === 'legacy') {
+    return '<p class="text-[10px] text-[#888] mt-2 leading-tight italic">These specs are from our general reference database. Always confirm with your owner\'s manual for your specific year and trim.</p>';
+  }
+  return '';
+}
+
+/** Convert liters to imperial (quarts or gallons) as primary display */
+function formatCapacity(c: string): string {
+  // Handle range patterns like "9-10 litre" first
+  let result = c.replace(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*litre/gi, (_match, lo, hi) => {
+    const loL = parseFloat(lo), hiL = parseFloat(hi);
+    if (hiL >= 3.785) {
+      return `${(loL / 3.785).toFixed(1)}-${(hiL / 3.785).toFixed(1)} gal`;
+    }
+    return `${(loL * 1.05669).toFixed(1)}-${(hiL * 1.05669).toFixed(1)} qt`;
+  });
+  // Convert single values
+  result = result.replace(/(\d+(?:\.\d+)?)\s*litre/gi, (_match, num) => {
+    const liters = parseFloat(num);
+    if (liters >= 3.785) {
+      return `${(liters / 3.785).toFixed(1)} gal`;
+    }
+    return `${(liters * 1.05669).toFixed(1)} qt`;
+  });
+  // Strip "Capacity " prefix
+  result = result.replace(/Capacity\s+/gi, '');
+  // Convert grams → oz
+  result = result.replace(/(\d+(?:-\d+)?)\s*grams?/gi, (_match, num) => {
+    if (num.includes('-')) {
+      const [lo, hi] = num.split('-').map(Number);
+      return `${(lo * 0.03527396).toFixed(1)}-${(hi * 0.03527396).toFixed(1)} oz`;
+    }
+    return `${(parseInt(num) * 0.03527396).toFixed(1)} oz`;
+  });
+  return result;
+}
+
+/** Convert intervals to miles-only display */
+function formatInterval(i: string): string {
+  let result = i;
+  result = result.replace(/^Change\s+/i, '');
+  if (result.includes('mile') && !result.includes('km')) return result;
+  result = result.replace(/(\d+)\s*km/gi, (_match, num) => {
+    const km = parseInt(num);
+    const miles = Math.round(km * 0.621371);
+    return miles >= 1000 ? `${Math.round(miles / 1000)}k miles` : `${miles.toLocaleString()} miles`;
+  });
+  result = result.replace(/\s*\/\s*(?=\d+k?\s*mi)/g, '');
+  return result;
+}
+
 function fluidToHtml(f: FluidSpec): string {
   const product = f.p && f.p !== 'Special Product'
     ? `<span class="text-[#FFC700] font-bold">${f.p}</span>`
     : '<span class="text-[#888]">OEM / Special Product</span>';
   const lines = [`<strong>${f.ic} ${f.n}</strong>`, product];
-  if (f.c) lines.push(`<span class="text-[#888]">Cap:</span> ${f.c}`);
-  if (f.i) lines.push(`<span class="text-[#888]">Interval:</span> ${f.i}`);
+  if (f.c) lines.push(`<span class="text-[#888]">Cap:</span> ${formatCapacity(f.c)}`);
+  if (f.i) lines.push(`<span class="text-[#888]">Interval:</span> ${formatInterval(f.i)}`);
 
   const shopUrl = getProductUrl(f.u1pSku);
   const cartUrl = getCartUrl(f.u1pSku);
@@ -96,67 +163,17 @@ function TypingIndicator() {
   );
 }
 
-export default function ChatBot() {
-  const isInIframe = typeof window !== 'undefined' && window.top !== window.self;
+export default function ChatBot({ domain, onDomainChange }: { domain: VehicleDomain; onDomainChange?: (d: VehicleDomain) => void }) {
   const [open, setOpen] = useState(false);
-  const [visibleBottom, setVisibleBottom] = useState<number | null>(null);
-
-  // In an iframe, position:fixed is relative to the full iframe height (e.g. 2200px),
-  // not the visible screen area. The parent page scrolls over the iframe.
-  // Use IntersectionObserver on sentinel elements to detect which part of the
-  // iframe is currently visible, then absolutely position Enzo there.
-  useEffect(() => {
-    if (!isInIframe) return;
-
-    const STEP = 50;
-    const totalHeight = Math.max(document.documentElement.scrollHeight, 3000);
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:0;pointer-events:none;z-index:-1;overflow:visible;';
-    document.body.appendChild(container);
-
-    const sentinels: HTMLDivElement[] = [];
-    for (let y = 0; y <= totalHeight; y += STEP) {
-      const s = document.createElement('div');
-      s.style.cssText = `position:absolute;top:${y}px;left:0;width:1px;height:1px;`;
-      s.dataset.y = String(y);
-      container.appendChild(s);
-      sentinels.push(s);
-    }
-
-    // Track ALL currently-visible sentinels so we always know the full visible range
-    const visibleSet = new Set<number>();
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        const y = parseInt((e.target as HTMLElement).dataset.y || '0');
-        if (e.isIntersecting) {
-          visibleSet.add(y);
-        } else {
-          visibleSet.delete(y);
-        }
-      });
-      if (visibleSet.size > 0) {
-        const maxY = Math.max(...visibleSet);
-        setVisibleBottom(maxY + STEP);
-      }
-    }, { threshold: 0 });
-
-    sentinels.forEach(s => observer.observe(s));
-
-    return () => {
-      observer.disconnect();
-      container.remove();
-    };
-  }, [isInIframe]);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'bot',
-      text: "Hi! I'm Enzo, your Ultra1Plus maintenance assistant. How can I help you today?",
+      text: "Hi! I'm Enzo, your Ultra1Plus maintenance assistant. I can help with cars, motorcycles, and boats. How can I help you today?",
       buttons: [
         { label: 'Find fluids for my vehicle', value: 'find fluids' },
+        { label: 'Motorcycle lookup', value: 'motorcycle' },
+        { label: 'Marine lookup', value: 'boat' },
         { label: 'Shop products', value: 'shop' },
-        { label: 'Maintenance tips', value: 'tips' },
-        { label: 'Help', value: 'help' },
       ],
     },
   ]);
@@ -164,22 +181,32 @@ export default function ChatBot() {
   const [typing, setTyping] = useState(false);
   const [state, setState] = useState<ConversationState>({
     step: 'idle',
+    activeDomain: domain,
     makes: [],
     makeData: null,
     selectedMake: '',
     selectedModel: '',
     selectedType: '',
     fluids: [],
+    dataSource: null,
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const basePath = domainDataPath(state.activeDomain);
+
+  // Sync activeDomain when page-level domain prop changes
   useEffect(() => {
-    fetch('/data/index.json')
+    setState(s => ({ ...s, activeDomain: domain, makes: [], makeData: null, step: 'idle', selectedMake: '', selectedModel: '', selectedType: '', fluids: [], dataSource: null }));
+  }, [domain]);
+
+  // Reload makes when activeDomain changes
+  useEffect(() => {
+    fetch(basePath + 'index.json')
       .then(r => r.json())
       .then((makes: MakeIndex[]) => setState(s => ({ ...s, makes })))
       .catch(console.error);
-  }, []);
+  }, [basePath]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -199,6 +226,11 @@ export default function ChatBot() {
     setTimeout(() => addBot(text, html, buttons), delay);
   }, [addBot]);
 
+  const getSource = useCallback((makeId: string): 'fitment' | 'legacy' | null => {
+    const entry = state.makes.find(m => m.id === makeId || m.name === makeId);
+    return entry?.source ?? null;
+  }, [state.makes]);
+
   const findMake = useCallback((query: string, makes: MakeIndex[]): MakeIndex | null => {
     const q = query.toLowerCase().trim();
     const exact = makes.find(m => m.name.toLowerCase() === q);
@@ -209,6 +241,48 @@ export default function ChatBot() {
     if (contains.length === 1) return contains[0];
     return null;
   }, []);
+
+  // Detect domain intent from message text (explicit keywords only, not ambiguous makes)
+  const detectDomain = useCallback((text: string): VehicleDomain | null => {
+    const lc = text.toLowerCase();
+    for (const [dom, keywords] of Object.entries(DOMAIN_INTENT_KEYWORDS) as [VehicleDomain, string[]][]) {
+      if (keywords.some(kw => {
+        const idx = lc.indexOf(kw);
+        if (idx < 0) return false;
+        // Word boundary check: keyword must not be part of a longer word
+        const before = idx > 0 ? lc[idx - 1] : ' ';
+        const after = idx + kw.length < lc.length ? lc[idx + kw.length] : ' ';
+        return /[\s,.\-!?]/.test(before) || idx === 0 ? (/[\s,.\-!?]/.test(after) || idx + kw.length === lc.length) : false;
+      })) return dom;
+    }
+    // Check domain-locked make hints (Harley, Ducati, Mercury, etc.)
+    for (const [make, dom] of Object.entries(DOMAIN_MAKE_HINTS)) {
+      if (lc.includes(make)) return dom;
+    }
+    return null;
+  }, []);
+
+  // Switch domain: sync page, reload makes, reset vehicle state (preserve chat history)
+  const switchDomain = useCallback((newDomain: VehicleDomain) => {
+    onDomainChange?.(newDomain);
+    const newBasePath = domainDataPath(newDomain);
+    setState(s => ({
+      ...s,
+      activeDomain: newDomain,
+      makes: [],
+      makeData: null,
+      step: 'idle',
+      selectedMake: '',
+      selectedModel: '',
+      selectedType: '',
+      fluids: [],
+      dataSource: null,
+    }));
+    fetch(newBasePath + 'index.json')
+      .then(r => r.json())
+      .then((makes: MakeIndex[]) => setState(s => ({ ...s, makes })))
+      .catch(console.error);
+  }, [onDomainChange]);
 
   // Try to parse "make + model" from a single sentence
   const parseVehicleFromSentence = useCallback((text: string, makes: MakeIndex[]): { make: MakeIndex; modelHint: string } | null => {
@@ -244,6 +318,16 @@ export default function ChatBot() {
       'wrangler': { makeName: 'Jeep', model: 'Wrangler' },
       'mustang': { makeName: 'Ford', model: 'Mustang' },
       'explorer': { makeName: 'Ford', model: 'Explorer' },
+      // Motorcycle patterns
+      'street glide': { makeName: 'Harley-Davidson', model: 'Street Glide' },
+      'road glide': { makeName: 'Harley-Davidson', model: 'Road Glide' },
+      'sportster': { makeName: 'Harley-Davidson', model: 'Sportster' },
+      'cbr600rr': { makeName: 'Honda', model: 'CBR600RR' },
+      'cbr': { makeName: 'Honda', model: 'CBR600RR' },
+      'ninja': { makeName: 'Kawasaki', model: 'Ninja' },
+      'chief': { makeName: 'Indian', model: 'Chief' },
+      // Marine patterns
+      'verado': { makeName: 'Mercury', model: 'Verado' },
     };
 
     for (const [pattern, info] of Object.entries(modelPatterns)) {
@@ -260,10 +344,11 @@ export default function ChatBot() {
 
     // Reset
     if (lc === 'reset' || lc === 'start over' || lc === 'new vehicle' || lc === 'clear') {
-      setState(s => ({ ...s, step: 'idle', makeData: null, selectedMake: '', selectedModel: '', selectedType: '', fluids: [] }));
-      botReply("No problem! How can I help you?", undefined, [
-        { label: 'Find fluids for my vehicle', value: 'find fluids' },
-        { label: 'Shop products', value: 'shop' },
+      setState(s => ({ ...s, step: 'idle', makeData: null, selectedMake: '', selectedModel: '', selectedType: '', fluids: [], dataSource: null }));
+      const vehicleWord = state.activeDomain === 'motorcycle' ? 'bike' : state.activeDomain === 'marine' ? 'boat' : 'vehicle';
+      botReply(`No problem! What ${vehicleWord} can I help you with?`, undefined, [
+        { label: 'Find fluids', value: 'find fluids' },
+        { label: 'Switch domain', value: 'help' },
       ]);
       return;
     }
@@ -287,10 +372,79 @@ export default function ChatBot() {
       return;
     }
 
+    // Explicit domain switch commands (from quick buttons or typed)
+    if (lc === 'motorcycle' || lc === 'bike' || lc === 'motorbike') {
+      if (state.activeDomain !== 'motorcycle') {
+        switchDomain('motorcycle');
+        botReply("Switched to motorcycles! What's your bike? You can type the make (e.g., \"Harley-Davidson\") or make and model together.", undefined, [
+          { label: 'Find motorcycle fluids', value: 'find fluids' },
+        ]);
+      } else {
+        botReply("You're already in motorcycle mode! What's your bike?", undefined, [
+          { label: 'Find motorcycle fluids', value: 'find fluids' },
+        ]);
+      }
+      return;
+    }
+    if (lc === 'boat' || lc === 'marine') {
+      if (state.activeDomain !== 'marine') {
+        switchDomain('marine');
+        botReply("Switched to marine! What's your boat? You can type the make (e.g., \"Mercury\") or make and model together.", undefined, [
+          { label: 'Find marine fluids', value: 'find fluids' },
+        ]);
+      } else {
+        botReply("You're already in marine mode! What's your boat?", undefined, [
+          { label: 'Find marine fluids', value: 'find fluids' },
+        ]);
+      }
+      return;
+    }
+    if (lc === 'car' || lc === 'automotive' || lc === 'auto') {
+      if (state.activeDomain !== 'automotive') {
+        switchDomain('automotive');
+        botReply("Switched to automotive! What's your vehicle? You can type the make (e.g., \"Toyota\") or make and model together.", undefined, [
+          { label: 'Find vehicle fluids', value: 'find fluids' },
+        ]);
+      } else {
+        botReply("You're already in automotive mode! What's your vehicle?", undefined, [
+          { label: 'Find vehicle fluids', value: 'find fluids' },
+        ]);
+      }
+      return;
+    }
+
+    // Domain intent detection in longer messages (e.g., "what oil for my motorcycle")
+    // Only switch if explicit domain keyword detected AND it differs from current domain
+    const detectedDomain = detectDomain(text);
+    if (detectedDomain && detectedDomain !== state.activeDomain) {
+      // Check if the user's make is already in the current domain before switching
+      // This prevents "Honda" from switching domains when it exists in current
+      const makeInCurrentDomain = state.makes.some(m =>
+        cleanMakeName(m.name).toLowerCase().split(/\s+/).some(w => lc.includes(w))
+      );
+      // Only auto-switch when an explicit DOMAIN keyword was found (not just a make hint)
+      const hasExplicitDomainKeyword = Object.entries(DOMAIN_INTENT_KEYWORDS).some(
+        ([dom, keywords]) => dom === detectedDomain && keywords.some(kw => lc.includes(kw))
+      );
+      if (hasExplicitDomainKeyword || !makeInCurrentDomain) {
+        const domainInfo = VEHICLE_DOMAINS.find(d => d.id === detectedDomain);
+        const vehicleWord = detectedDomain === 'motorcycle' ? 'bike' : detectedDomain === 'marine' ? 'boat' : 'vehicle';
+        switchDomain(detectedDomain);
+        botReply(
+          `Switching to ${domainInfo?.icon} ${domainInfo?.label}! What's your ${vehicleWord}?`,
+          undefined,
+          [{ label: `Find ${domainInfo?.label?.toLowerCase()} fluids`, value: 'find fluids' }]
+        );
+        return;
+      }
+    }
+
     // Find fluids prompt
-    if (lc === 'find fluids' || lc === 'find fluids for my vehicle' || lc === 'look up vehicle') {
+    if (lc === 'find fluids' || lc === 'find fluids for my vehicle' || (lc.includes('find') && lc.includes('fluids')) || lc === 'look up vehicle') {
       setState(s => ({ ...s, step: 'idle' }));
-      botReply("What's your vehicle? You can type the make (e.g., \"Toyota\") or make and model together (e.g., \"Ford F-150\").");
+      const vehicleWord = state.activeDomain === 'motorcycle' ? 'bike' : state.activeDomain === 'marine' ? 'boat' : 'vehicle';
+      const example = state.activeDomain === 'motorcycle' ? '"Harley-Davidson"' : state.activeDomain === 'marine' ? '"Mercury"' : '"Toyota"';
+      botReply(`What's your ${vehicleWord}? You can type the make (e.g., ${example}) or make and model together.`);
       return;
     }
 
@@ -343,10 +497,10 @@ export default function ChatBot() {
             </span>
           </div>`;
         }).join('');
-        botReply(
-          `Here are the Ultra1Plus products for your ${cleanMakeName(state.selectedMake)}:`,
-          `<div>${html}</div>`
-        );
+        const orderIntro = state.dataSource === 'fitment'
+          ? `Here are the recommended Ultra1Plus products for your ${cleanMakeName(state.selectedMake)}:`
+          : `Here are Ultra1Plus products that may be compatible with your ${cleanMakeName(state.selectedMake)}:`;
+        botReply(orderIntro, `<div>${html}</div>`);
       } else {
         botReply("The fluids for this vehicle require OEM-specific products. Visit ultra1plus.com for our full catalog!", undefined, [
           { label: 'Shop products', value: 'shop' },
@@ -361,7 +515,8 @@ export default function ChatBot() {
         if (state.fluids.length > 0) {
           const engine = state.fluids.find(f => f.n.toLowerCase() === 'engine');
           if (engine?.i) {
-            botReply(`For your ${cleanMakeName(state.selectedMake)}, the engine oil change interval is: ${engine.i}. Always consult your owner's manual.`, undefined, [
+            const intervalSuffix = state.dataSource === 'legacy' ? ' This is a general guideline — always confirm with your owner\'s manual.' : ' Always consult your owner\'s manual.';
+            botReply(`For your ${cleanMakeName(state.selectedMake)}, the engine oil change interval is: ${formatInterval(engine.i)}.${intervalSuffix}`, undefined, [
               { label: 'Show all fluids', value: 'show all' },
               { label: 'Order products', value: 'order' },
             ]);
@@ -390,9 +545,10 @@ export default function ChatBot() {
           if (keywords.some(kw => lc.includes(kw))) {
             const match = state.fluids.find(f => f.n.toLowerCase().includes(fluidType));
             if (match) {
+              const fluidPrefix = state.dataSource === 'fitment' ? 'Here\'s the verified' : 'Here\'s the';
               botReply(
-                `Here's the ${match.n.toLowerCase()} info for your ${cleanMakeName(state.selectedMake)}:`,
-                fluidToHtml(match),
+                `${fluidPrefix} ${match.n.toLowerCase()} info for your ${cleanMakeName(state.selectedMake)}:`,
+                fluidToHtml(match) + fluidDisclaimer(state.dataSource),
                 [
                   { label: 'Show all fluids', value: 'show all' },
                   { label: 'Order all products', value: 'order' },
@@ -405,9 +561,11 @@ export default function ChatBot() {
         }
 
         if (lc.includes('all fluid') || lc.includes('show all') || lc.includes('list all') || lc.includes('everything')) {
-          const html = state.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>');
+          const allPrefix = state.dataSource === 'fitment' ? 'All' : 'All available';
+          const introText = `${allPrefix} ${state.fluids.length} fluid specs for your ${cleanMakeName(state.selectedMake)} ${state.selectedModel}:`;
+          const html = `<p class="font-medium mb-2">${introText}</p>` + state.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>') + fluidDisclaimer(state.dataSource);
           botReply(
-            `All ${state.fluids.length} fluid specs for your ${cleanMakeName(state.selectedMake)} ${state.selectedModel}:`,
+            introText,
             html,
             [
               { label: 'Order products', value: 'order' },
@@ -421,10 +579,11 @@ export default function ChatBot() {
       // Try natural language: "what oil for my toyota camry"
       const parsed = parseVehicleFromSentence(text, state.makes);
       if (parsed) {
-        setState(s => ({ ...s, step: 'awaiting_model', selectedMake: parsed.make.name, selectedModel: '', selectedType: '', fluids: [] }));
+        const src = parsed.make.source ?? null;
+        setState(s => ({ ...s, step: 'awaiting_model', selectedMake: parsed.make.name, selectedModel: '', selectedType: '', fluids: [], dataSource: src }));
         setTyping(true);
 
-        fetch(`/data/${parsed.make.id}.json`)
+        fetch(`${basePath}${parsed.make.id}.json`)
           .then(r => r.json())
           .then((data: MakeData) => {
             setState(s => ({ ...s, makeData: data }));
@@ -434,9 +593,9 @@ export default function ChatBot() {
               if (model.types.length === 1) {
                 const type = model.types[0];
                 setState(s => ({ ...s, step: 'vehicle_selected', selectedType: type.name, fluids: type.fluids }));
-                const html = type.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>');
+                const html = fluidIntroHtml(src, parsed.make.name, model!.name) + type.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>') + fluidDisclaimer(src);
                 addBot(
-                  `Here are the fluid specs for your ${cleanMakeName(parsed.make.name)} ${model!.name}:`,
+                  fluidIntroText(src, parsed.make.name, model!.name),
                   html,
                   [
                     { label: 'Order products', value: 'order' },
@@ -460,10 +619,10 @@ export default function ChatBot() {
       // Simple make match
       const make = findMake(text, state.makes);
       if (make) {
-        setState(s => ({ ...s, step: 'awaiting_model', selectedMake: make.name, selectedModel: '', selectedType: '', fluids: [] }));
+        setState(s => ({ ...s, step: 'awaiting_model', selectedMake: make.name, selectedModel: '', selectedType: '', fluids: [], dataSource: make.source ?? null }));
         setTyping(true);
 
-        fetch(`/data/${make.id}.json`)
+        fetch(`${basePath}${make.id}.json`)
           .then(r => r.json())
           .then((data: MakeData) => {
             setState(s => ({ ...s, makeData: data }));
@@ -488,11 +647,17 @@ export default function ChatBot() {
         return;
       }
 
-      botReply("I'm not sure I understood that. What would you like to do?", undefined, [
-        { label: 'Find fluids for my vehicle', value: 'find fluids' },
-        { label: 'Shop products', value: 'shop' },
-        { label: 'Help', value: 'help' },
-      ]);
+      const currentDomainInfo = VEHICLE_DOMAINS.find(d => d.id === state.activeDomain);
+      const otherDomains = VEHICLE_DOMAINS.filter(d => d.id !== state.activeDomain);
+      botReply(
+        `I couldn't find a match in ${currentDomainInfo?.label}. Try a different spelling, or switch domains:`,
+        undefined,
+        [
+          { label: 'Find fluids', value: 'find fluids' },
+          ...otherDomains.map(d => ({ label: `${d.icon} ${d.label}`, value: d.id })),
+          { label: 'Help', value: 'help' },
+        ]
+      );
       return;
     }
 
@@ -505,10 +670,10 @@ export default function ChatBot() {
         ]);
         return;
       }
-      setState(s => ({ ...s, step: 'awaiting_model', selectedMake: selected!.name }));
+      setState(s => ({ ...s, step: 'awaiting_model', selectedMake: selected!.name, dataSource: selected!.source ?? null }));
       setTyping(true);
 
-      fetch(`/data/${selected.id}.json`)
+      fetch(`${basePath}${selected.id}.json`)
         .then(r => r.json())
         .then((data: MakeData) => {
           setState(s => ({ ...s, makeData: data }));
@@ -552,9 +717,9 @@ export default function ChatBot() {
       if (model.types.length === 1) {
         const type = model.types[0];
         setState(s => ({ ...s, step: 'vehicle_selected', selectedType: type.name, fluids: type.fluids }));
-        const html = type.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>');
+        const html = fluidIntroHtml(state.dataSource, state.selectedMake, model!.name) + type.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>') + fluidDisclaimer(state.dataSource);
         botReply(
-          `Here are the fluid specs for your ${cleanMakeName(state.selectedMake)} ${model!.name}:`,
+          fluidIntroText(state.dataSource, state.selectedMake, model!.name),
           html,
           [
             { label: 'Order products', value: 'order' },
@@ -590,9 +755,9 @@ export default function ChatBot() {
       }
 
       setState(s => ({ ...s, step: 'vehicle_selected', selectedType: type!.name, fluids: type!.fluids }));
-      const html = type.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>');
+      const html = fluidIntroHtml(state.dataSource, state.selectedMake, state.selectedModel) + type.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>') + fluidDisclaimer(state.dataSource);
       botReply(
-        `Here are the fluid specs for your ${cleanMakeName(state.selectedMake)} ${state.selectedModel}:`,
+        fluidIntroText(state.dataSource, state.selectedMake, state.selectedModel),
         html,
         [
           { label: 'Order products', value: 'order' },
@@ -601,7 +766,7 @@ export default function ChatBot() {
       );
       return;
     }
-  }, [state, addBot, botReply, findMake, parseVehicleFromSentence]);
+  }, [state, addBot, botReply, findMake, parseVehicleFromSentence, basePath, detectDomain, switchDomain]);
 
   const handleSend = useCallback((overrideText?: string) => {
     const text = (overrideText || input).trim();
@@ -621,62 +786,68 @@ export default function ChatBot() {
     handleSend(value);
   };
 
-  // When in iframe, use absolute positioning based on visible viewport area
-  const useIframePos = isInIframe && visibleBottom !== null;
-  const posStyle = useIframePos
-    ? { position: 'absolute' as const, top: visibleBottom - 140, right: 24 }
-    : undefined;
-  const chatPosStyle = useIframePos
-    ? { position: 'absolute' as const, top: visibleBottom - 140 - 16 - 560, right: 24, height: '560px' }
-    : { height: 'min(560px, calc(100vh - 8rem))' };
-  const posClass = useIframePos ? '' : 'fixed bottom-6 right-6';
-  const chatPosClass = useIframePos ? '' : 'fixed bottom-24 right-6';
-
   return (
     <>
       {/* Chat toggle button */}
       {open ? (
         <button
           onClick={() => setOpen(false)}
-          className={`${posClass} z-50 w-14 h-14 bg-[#FFC700] hover:bg-[#e6b400] text-black rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105`}
-          style={posStyle}
+          className="fixed bottom-4 right-4 z-50 w-11 h-11 bg-[#FFC700] hover:bg-[#e6b400] text-black rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
           aria-label="Close chat"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className={`${posClass} z-50 flex items-center gap-3 bg-black border-2 border-red-600 text-white
-            pl-5 pr-6 py-3 rounded-full shadow-2xl hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all hover:scale-105 group enzo-flash`}
-          style={posStyle}
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-black border border-[#FFC700]/60 text-white
+            pl-3 pr-4 py-2 rounded-full shadow-lg hover:shadow-xl hover:border-[#FFC700] transition-all hover:scale-105 group"
           aria-label="Open Enzo maintenance assistant"
         >
-          <div className="w-10 h-10 bg-[#FFC700] rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-black font-black text-xs">U1P</span>
+          <div className="w-8 h-8 bg-[#FFC700] rounded-full flex items-center justify-center flex-shrink-0">
+            <span className="text-black font-black text-[10px]">U1P</span>
           </div>
           <div className="text-left">
-            <span className="block text-sm font-bold uppercase tracking-wide text-[#FFC700]">Enzo</span>
-            <span className="block text-xs text-gray-400">Ask me anything</span>
+            <span className="block text-xs font-bold uppercase tracking-wide text-[#FFC700]">Enzo</span>
+            <span className="block text-[10px] text-gray-500 leading-tight">Ask me anything</span>
           </div>
         </button>
       )}
 
       {/* Chat window */}
       {open && (
-        <div className={`${chatPosClass} z-50 w-[400px] max-w-[calc(100vw-2rem)] bg-black border-2 border-[#FFC700] shadow-2xl animate-slide-up flex flex-col`}
-          style={chatPosStyle}
+        <div className="fixed bottom-[4.5rem] right-4 z-50 w-[380px] max-w-[calc(100vw-2rem)] bg-black border-2 border-[#FFC700] shadow-2xl animate-slide-up flex flex-col"
+          style={{ height: 'min(520px, calc(100vh - 6rem))' }}
         >
           {/* Header */}
           <div className="bg-black px-4 py-3 border-b border-[#FFC700]/30 flex items-center gap-3 flex-shrink-0">
             <div className="w-8 h-8 bg-[#FFC700] rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-black font-black text-xs">U1P</span>
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h3 className="text-white font-bold text-sm uppercase tracking-wide">Enzo</h3>
-              <p className="text-[#FFC700] text-xs">Your Maintenance Assistant</p>
+              <div className="flex gap-1 mt-1">
+                {VEHICLE_DOMAINS.map(d => (
+                  <button key={d.id}
+                    onClick={() => {
+                      if (state.activeDomain !== d.id) {
+                        const vehicleWord = d.id === 'motorcycle' ? 'bike' : d.id === 'marine' ? 'boat' : 'vehicle';
+                        switchDomain(d.id);
+                        botReply(`Switched to ${d.icon} ${d.label}! What's your ${vehicleWord}?`, undefined, [
+                          { label: `Find ${d.label.toLowerCase()} fluids`, value: 'find fluids' },
+                        ]);
+                      }
+                    }}
+                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${
+                      state.activeDomain === d.id
+                        ? 'bg-[#FFC700] text-black'
+                        : 'bg-[#222] text-[#888] border border-[#444] hover:border-[#FFC700]/50 hover:text-[#FFC700]'
+                    }`}
+                  >{d.icon} {d.label}</button>
+                ))}
+              </div>
             </div>
           </div>
 

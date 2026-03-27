@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MakeIndex, MakeData, VehicleType } from '@/data/types';
+import { MakeIndex, MakeData, VehicleType, VehicleDomain, domainDataPath } from '@/data/types';
 
 /** Strip region suffix like "(USA / CAN)" or "(USA)" from make names */
 function cleanMakeName(name: string): string {
@@ -21,6 +21,7 @@ function matchSlug(name: string, slug: string): boolean {
 }
 
 interface Props {
+  domain: VehicleDomain;
   onSelect: (vehicle: { make: string; model: string; type: VehicleType } | null) => void;
   initialMake?: string;
   initialModel?: string;
@@ -216,7 +217,7 @@ function SearchableDropdown({
   );
 }
 
-export default function VehicleSelector({ onSelect, initialMake, initialModel, initialType }: Props) {
+export default function VehicleSelector({ domain, onSelect, initialMake, initialModel, initialType }: Props) {
   const [makes, setMakes] = useState<MakeIndex[]>([]);
   const [makeData, setMakeData] = useState<MakeData | null>(null);
   const [selectedMake, setSelectedMake] = useState('');
@@ -225,14 +226,28 @@ export default function VehicleSelector({ onSelect, initialMake, initialModel, i
   const [loading, setLoading] = useState(false);
   const initializedRef = useRef(false);
 
+  const basePath = domainDataPath(domain);
+
+  // Reset state when domain changes
   useEffect(() => {
-    fetch('/data/index.json')
+    setMakes([]);
+    setMakeData(null);
+    setSelectedMake('');
+    setSelectedModel('');
+    setSelectedType('');
+    initializedRef.current = false;
+    onSelect(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domain]);
+
+  useEffect(() => {
+    fetch(basePath + 'index.json')
       .then(r => r.json())
       .then((data: MakeIndex[]) => {
         setMakes(data);
       })
       .catch(console.error);
-  }, []);
+  }, [basePath]);
 
   // Handle initial selection from URL params
   useEffect(() => {
@@ -245,7 +260,7 @@ export default function VehicleSelector({ onSelect, initialMake, initialModel, i
     setSelectedMake(makeInfo.name);
     setLoading(true);
 
-    fetch(`/data/${makeInfo.id}.json`)
+    fetch(`${basePath}${makeInfo.id}.json`)
       .then(r => r.json())
       .then((data: MakeData) => {
         setMakeData(data);
@@ -284,7 +299,7 @@ export default function VehicleSelector({ onSelect, initialMake, initialModel, i
     if (!makeInfo) return;
 
     setLoading(true);
-    fetch(`/data/${makeInfo.id}.json`)
+    fetch(`${basePath}${makeInfo.id}.json`)
       .then(r => r.json())
       .then((data: MakeData) => {
         setMakeData(data);
@@ -335,7 +350,7 @@ export default function VehicleSelector({ onSelect, initialMake, initialModel, i
     onSelect(null);
     setLoading(true);
 
-    fetch(`/data/${makeInfo.id}.json`)
+    fetch(`${basePath}${makeInfo.id}.json`)
       .then(r => r.json())
       .then((data: MakeData) => {
         setMakeData(data);
