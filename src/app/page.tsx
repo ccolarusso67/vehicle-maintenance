@@ -5,7 +5,9 @@ import Header from '@/components/Header';
 import VehicleSelector from '@/components/VehicleSelector';
 import FluidCard from '@/components/FluidCard';
 import ChatBot from '@/components/ChatBot';
-import { VehicleType, MakeIndex, VehicleDomain, VEHICLE_DOMAINS, domainDataPath } from '@/data/types';
+import { VehicleType, MakeIndex, VehicleDomain, VEHICLE_DOMAINS, domainDataPath, FluidSpec } from '@/data/types';
+import { initFitmentApi } from '@/lib/fitmentApi';
+import { getRecentVehicles, addRecentVehicle, RecentVehicle } from '@/lib/recentVehicles';
 
 interface SelectedVehicle {
   make: string;
@@ -30,6 +32,69 @@ function toSlug(str: string): string {
     .replace(/^-+|-+$/g, '');       // trim leading/trailing hyphens
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function buildJsonLd(vehicle: SelectedVehicle | null): Record<string, any>[] {
+  const baseUrl = 'https://vehicle-maintenance.ultra1plus.com';
+
+  const schemas: Record<string, any>[] = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebApplication',
+      name: 'Ultra1Plus Vehicle Maintenance Guide',
+      url: baseUrl,
+      description:
+        'Find the right motor oil, transmission fluid, coolant, brake fluid, and power steering fluid for your vehicle.',
+      applicationCategory: 'AutomotiveApplication',
+      operatingSystem: 'Any',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'USD',
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: 'Ultra1Plus',
+        url: 'https://ultra1plus.com',
+        logo: {
+          '@type': 'ImageObject',
+          url: 'https://cdn11.bigcommerce.com/s-w94u0bjkb6/images/stencil/original/recurso_1_1757027375__15872.original.png',
+        },
+      },
+    },
+  ];
+
+  if (vehicle) {
+    const makeName = cleanMakeName(vehicle.make);
+    schemas.push({
+      '@context': 'https://schema.org',
+      '@type': 'Vehicle',
+      manufacturer: { '@type': 'Organization', name: makeName },
+      model: vehicle.type.name,
+      name: `${makeName} ${vehicle.type.name}`,
+      url: `${baseUrl}/${toSlug(vehicle.make)}/${toSlug(vehicle.model)}/${toSlug(vehicle.type.name)}`,
+    });
+
+    if (Array.isArray(vehicle.type.fluids)) {
+      for (const fluid of vehicle.type.fluids) {
+        if (!fluid.p || fluid.p === '-') continue;
+        const product: Record<string, any> = {
+          '@context': 'https://schema.org',
+          '@type': 'Product',
+          name: fluid.p,
+          description: `${fluid.n} for ${makeName} ${vehicle.type.name} — ${fluid.c}`,
+          brand: { '@type': 'Brand', name: 'Ultra1Plus' },
+          category: fluid.n,
+        };
+        if (fluid.u1pSku) product.sku = fluid.u1pSku;
+        schemas.push(product);
+      }
+    }
+  }
+
+  return schemas;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 function getUrlParams(): { make: string; model: string; type: string } {
   if (typeof window === 'undefined') return { make: '', model: '', type: '' };
   const path = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
@@ -47,6 +112,13 @@ export default function Home() {
   const [domain, setDomain] = useState<VehicleDomain>('automotive');
   const [stats, setStats] = useState({ makes: 0, models: 0 });
   const [urlParams] = useState(getUrlParams);
+  const [recentVehicles, setRecentVehicles] = useState<RecentVehicle[]>([]);
+
+  // Initialize the fitment API client (pre-warm token, non-blocking)
+  useEffect(() => { initFitmentApi(); }, []);
+
+  // Load recently viewed vehicles from localStorage
+  useEffect(() => { setRecentVehicles(getRecentVehicles()); }, []);
 
   useEffect(() => {
     fetch(domainDataPath(domain) + 'index.json')
@@ -70,14 +142,32 @@ export default function Home() {
     if (v) {
       const slug = `/${toSlug(v.make)}/${toSlug(v.model)}/${toSlug(v.type.name)}`;
       window.history.replaceState({}, '', slug);
+      const recent: RecentVehicle = {
+        make: v.make,
+        model: v.model,
+        type: v.type.name,
+        domain,
+        timestamp: Date.now(),
+      };
+      addRecentVehicle(recent);
+      setRecentVehicles(getRecentVehicles());
     } else {
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, []);
+  }, [domain]);
 
   return (
     <div className="min-h-screen bg-white">
       <Header />
+
+      {/* JSON-LD Structured Data */}
+      {buildJsonLd(vehicle).map((schema, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        />
+      ))}
 
       <main className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Domain Selector */}
@@ -129,10 +219,10 @@ export default function Home() {
                 Fluids &amp; Specifications
               </h2>
               <p className="text-sm text-[#888] mb-4">
-                {vehicle.type.fluids.length} fluid specifications found for this vehicle
+                {Array.isArray(vehicle.type.fluids) ? vehicle.type.fluids.length : vehicle.type.fluids} fluid specifications found for this vehicle
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {vehicle.type.fluids.map((fluid, idx) => (
+                {Array.isArray(vehicle.type.fluids) && vehicle.type.fluids.map((fluid: FluidSpec, idx: number) => (
                   <div
                     key={fluid.n}
                     className="animate-fade-in"
@@ -190,6 +280,39 @@ export default function Home() {
                 <span className="text-xs font-bold text-[#888] uppercase tracking-widest">Intervals</span>
               </div>
             </div>
+
+            {/* Recently Viewed Vehicles */}
+            {recentVehicles.length > 0 && (
+              <div className="mt-12 max-w-2xl mx-auto">
+                <h3 className="text-sm font-bold text-[#888] uppercase tracking-widest mb-4 text-center">
+                  Recently Viewed
+                </h3>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {recentVehicles.map((rv, idx) => (
+                    <button
+                      key={`${rv.make}-${rv.model}-${rv.type}-${idx}`}
+                      onClick={() => {
+                        if (rv.domain !== domain) {
+                          handleDomainChange(rv.domain as VehicleDomain);
+                        }
+                        const slug = `/${toSlug(rv.make)}/${toSlug(rv.model)}/${toSlug(rv.type)}`;
+                        window.location.href = slug;
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 border-2 border-[#DFDFDF] bg-white
+                        hover:border-[#FFC700] hover:shadow-md transition-all group"
+                    >
+                      <span className="text-[#FFC700] font-black text-xs group-hover:scale-110 transition-transform">&#9670;</span>
+                      <span className="text-sm font-bold text-black">
+                        {cleanMakeName(rv.make)} {rv.model}
+                      </span>
+                      <span className="text-[10px] text-[#888] font-medium uppercase tracking-wide">
+                        {rv.type.length > 30 ? rv.type.slice(0, 30) + '...' : rv.type}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

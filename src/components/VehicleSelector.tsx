@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MakeIndex, MakeData, VehicleType, VehicleDomain, domainDataPath } from '@/data/types';
+import { MakeIndex, MakeData, VehicleType, VehicleDomain, domainDataPath, FluidSpec } from '@/data/types';
+import { isApiEnabled, fetchVehicleFluids } from '@/lib/fitmentApi';
 
 /** Strip region suffix like "(USA / CAN)" or "(USA)" from make names */
 function cleanMakeName(name: string): string {
@@ -335,7 +336,29 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
     const model = makeData.models.find(m => m.name === selectedModel);
     const type = model?.types.find(t => t.name === typeName);
     if (type) {
-      onSelect({ make: makeData.make, model: selectedModel, type });
+      // Check if fluids are available locally (full mode) or need API fetch (slim mode)
+      if (Array.isArray(type.fluids) && type.fluids.length > 0) {
+        onSelect({ make: makeData.make, model: selectedModel, type });
+      } else if (isApiEnabled()) {
+        // Slim mode — fetch fluids from protected API
+        setLoading(true);
+        fetchVehicleFluids(domain, makeData.make, selectedModel, typeName)
+          .then(fluids => {
+            if (fluids && fluids.length > 0) {
+              const enrichedType: VehicleType = { name: typeName, fluids };
+              onSelect({ make: makeData.make, model: selectedModel, type: enrichedType });
+            } else {
+              // API returned no fluids — use what we have
+              onSelect({ make: makeData.make, model: selectedModel, type });
+            }
+          })
+          .catch(() => {
+            onSelect({ make: makeData.make, model: selectedModel, type });
+          })
+          .finally(() => setLoading(false));
+      } else {
+        onSelect({ make: makeData.make, model: selectedModel, type });
+      }
     }
   }
 

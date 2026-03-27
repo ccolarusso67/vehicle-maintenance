@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://vehicle-maintenance.ultra1plus.com/sitemap.xml

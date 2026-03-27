@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { MakeIndex, MakeData, FluidSpec, VehicleDomain, domainDataPath, DOMAIN_INTENT_KEYWORDS, DOMAIN_MAKE_HINTS, VEHICLE_DOMAINS } from '@/data/types';
+import { isApiEnabled, fetchVehicleFluids, searchVehiclesApi } from '@/lib/fitmentApi';
 
 interface Message {
   role: 'bot' | 'user';
@@ -168,11 +169,12 @@ export default function ChatBot({ domain, onDomainChange }: { domain: VehicleDom
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'bot',
-      text: "Hi! I'm Enzo, your Ultra1Plus maintenance assistant. I can help with cars, motorcycles, and boats. How can I help you today?",
+      text: "Hi! I'm Enzo, your Ultra1Plus maintenance assistant. I can help with cars, motorcycles, boats, and heavy-duty trucks. How can I help you today?",
       buttons: [
         { label: 'Find fluids for my vehicle', value: 'find fluids' },
         { label: 'Motorcycle lookup', value: 'motorcycle' },
         { label: 'Marine lookup', value: 'boat' },
+        { label: 'Heavy-Duty lookup', value: 'heavy duty' },
         { label: 'Shop products', value: 'shop' },
       ],
     },
@@ -283,6 +285,61 @@ export default function ChatBot({ domain, onDomainChange }: { domain: VehicleDom
       .then((makes: MakeIndex[]) => setState(s => ({ ...s, makes })))
       .catch(console.error);
   }, [onDomainChange]);
+
+  /**
+   * Resolve fluids for a vehicle type — uses local data if available (full JSON),
+   * falls back to protected API if local data is slim (no fluid arrays).
+   */
+  const resolveFluids = useCallback(async (
+    make: string, model: string, typeName: string, localFluids: FluidSpec[] | number
+  ): Promise<FluidSpec[]> => {
+    // If local data has full fluid arrays, use them directly
+    if (Array.isArray(localFluids) && localFluids.length > 0) {
+      return localFluids;
+    }
+    // Try API if enabled
+    if (isApiEnabled()) {
+      const apiFluids = await fetchVehicleFluids(state.activeDomain, make, model, typeName);
+      if (apiFluids && apiFluids.length > 0) return apiFluids;
+    }
+    // Fallback: return empty or whatever we have
+    return Array.isArray(localFluids) ? localFluids : [];
+  }, [state.activeDomain]);
+
+  /**
+   * Resolve fluids (with API fallback for slim data) and display them in chat.
+   * Handles the async pattern so callers don't need to be async themselves.
+   */
+  const displayFluidsForType = useCallback((
+    make: string, model: string, type: { name: string; fluids: FluidSpec[] | number },
+    src: 'fitment' | 'legacy' | null,
+    addBotFn: (text: string, html?: string, buttons?: QuickButton[]) => void,
+  ) => {
+    const buttons: QuickButton[] = [
+      { label: 'Order products', value: 'order' },
+      { label: 'New vehicle', value: 'reset' },
+    ];
+    const showFluids = (fluids: FluidSpec[]) => {
+      setState(s => ({ ...s, step: 'vehicle_selected', selectedType: type.name, fluids }));
+      if (fluids.length === 0) {
+        addBotFn(`No fluid specs found for this ${type.name}. Try another variant or vehicle.`, undefined, buttons);
+        return;
+      }
+      const html = fluidIntroHtml(src, make, model) + fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>') + fluidDisclaimer(src);
+      addBotFn(fluidIntroText(src, make, model), html, buttons);
+    };
+
+    if (Array.isArray(type.fluids) && type.fluids.length > 0) {
+      showFluids(type.fluids);
+    } else {
+      // Slim data or empty — try API
+      resolveFluids(make, model, type.name, type.fluids)
+        .then(showFluids)
+        .catch(() => {
+          addBotFn('Sorry, I couldn\'t load the fluid specs right now. Please try again.', undefined, buttons);
+        });
+    }
+  }, [resolveFluids]);
 
   // Try to parse "make + model" from a single sentence
   const parseVehicleFromSentence = useCallback((text: string, makes: MakeIndex[]): { make: MakeIndex; modelHint: string } | null => {
@@ -412,6 +469,19 @@ export default function ChatBot({ domain, onDomainChange }: { domain: VehicleDom
       }
       return;
     }
+    if (lc === 'heavy duty' || lc === 'heavy-duty' || lc === 'semi' || lc === 'semi truck' || lc === 'class 8') {
+      if (state.activeDomain !== 'heavy-duty') {
+        switchDomain('heavy-duty');
+        botReply("Switched to heavy-duty! What's your truck? You can type the make (e.g., \"Freightliner\") or make and model together.", undefined, [
+          { label: 'Find HD truck fluids', value: 'find fluids' },
+        ]);
+      } else {
+        botReply("You're already in heavy-duty mode! What's your truck?", undefined, [
+          { label: 'Find HD truck fluids', value: 'find fluids' },
+        ]);
+      }
+      return;
+    }
 
     // Domain intent detection in longer messages (e.g., "what oil for my motorcycle")
     // Only switch if explicit domain keyword detected AND it differs from current domain
@@ -428,7 +498,7 @@ export default function ChatBot({ domain, onDomainChange }: { domain: VehicleDom
       );
       if (hasExplicitDomainKeyword || !makeInCurrentDomain) {
         const domainInfo = VEHICLE_DOMAINS.find(d => d.id === detectedDomain);
-        const vehicleWord = detectedDomain === 'motorcycle' ? 'bike' : detectedDomain === 'marine' ? 'boat' : 'vehicle';
+        const vehicleWord = detectedDomain === 'motorcycle' ? 'bike' : detectedDomain === 'marine' ? 'boat' : detectedDomain === 'heavy-duty' ? 'truck' : 'vehicle';
         switchDomain(detectedDomain);
         botReply(
           `Switching to ${domainInfo?.icon} ${domainInfo?.label}! What's your ${vehicleWord}?`,
@@ -592,15 +662,7 @@ export default function ChatBot({ domain, onDomainChange }: { domain: VehicleDom
               setState(s => ({ ...s, selectedModel: model!.name }));
               if (model.types.length === 1) {
                 const type = model.types[0];
-                setState(s => ({ ...s, step: 'vehicle_selected', selectedType: type.name, fluids: type.fluids }));
-                const html = fluidIntroHtml(src, parsed.make.name, model!.name) + type.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>') + fluidDisclaimer(src);
-                addBot(
-                  fluidIntroText(src, parsed.make.name, model!.name),
-                  html,
-                  [
-                    { label: 'Order products', value: 'order' },
-                    { label: 'New vehicle', value: 'reset' },
-                  ]
+                displayFluidsForType(parsed.make.name, model!.name, type, src, addBot
                 );
               } else {
                 setState(s => ({ ...s, step: 'awaiting_type' }));
@@ -644,6 +706,47 @@ export default function ChatBot({ domain, onDomainChange }: { domain: VehicleDom
         const buttons = multiMatch.map((m, i) => ({ label: cleanMakeName(m.name), value: m.name }));
         botReply(`I found multiple matches. Which one?`, undefined, buttons);
         setState(s => ({ ...s, step: 'awaiting_make' }));
+        return;
+      }
+
+      // Search API fallback — try searching before giving up
+      if (text.trim().length >= 3) {
+        setTyping(true);
+        searchVehiclesApi(state.activeDomain, text.trim())
+          .then(results => {
+            if (results && results.length > 0) {
+              const buttons: QuickButton[] = results.slice(0, 8).map(r => ({
+                label: `${r.make} ${r.model}`,
+                value: `${r.make} ${r.model}`,
+              }));
+              addBot('I found some matches:', undefined, buttons);
+            } else {
+              const currentDomainInfo = VEHICLE_DOMAINS.find(d => d.id === state.activeDomain);
+              const otherDomains = VEHICLE_DOMAINS.filter(d => d.id !== state.activeDomain);
+              addBot(
+                `I couldn't find a match in ${currentDomainInfo?.label}. Try a different spelling, or switch domains:`,
+                undefined,
+                [
+                  { label: 'Find fluids', value: 'find fluids' },
+                  ...otherDomains.map(d => ({ label: `${d.icon} ${d.label}`, value: d.id })),
+                  { label: 'Help', value: 'help' },
+                ]
+              );
+            }
+          })
+          .catch(() => {
+            const currentDomainInfo = VEHICLE_DOMAINS.find(d => d.id === state.activeDomain);
+            const otherDomains = VEHICLE_DOMAINS.filter(d => d.id !== state.activeDomain);
+            addBot(
+              `I couldn't find a match in ${currentDomainInfo?.label}. Try a different spelling, or switch domains:`,
+              undefined,
+              [
+                { label: 'Find fluids', value: 'find fluids' },
+                ...otherDomains.map(d => ({ label: `${d.icon} ${d.label}`, value: d.id })),
+                { label: 'Help', value: 'help' },
+              ]
+            );
+          });
         return;
       }
 
@@ -716,16 +819,7 @@ export default function ChatBot({ domain, onDomainChange }: { domain: VehicleDom
 
       if (model.types.length === 1) {
         const type = model.types[0];
-        setState(s => ({ ...s, step: 'vehicle_selected', selectedType: type.name, fluids: type.fluids }));
-        const html = fluidIntroHtml(state.dataSource, state.selectedMake, model!.name) + type.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>') + fluidDisclaimer(state.dataSource);
-        botReply(
-          fluidIntroText(state.dataSource, state.selectedMake, model!.name),
-          html,
-          [
-            { label: 'Order products', value: 'order' },
-            { label: 'New vehicle', value: 'reset' },
-          ]
-        );
+        displayFluidsForType(state.selectedMake, model!.name, type, state.dataSource, botReply);
       } else {
         setState(s => ({ ...s, step: 'awaiting_type' }));
         const buttons = model.types.slice(0, 6).map((t, i) => ({ label: t.name.length > 35 ? t.name.slice(0, 35) + '...' : t.name, value: String(i + 1) }));
@@ -754,19 +848,10 @@ export default function ChatBot({ domain, onDomainChange }: { domain: VehicleDom
         return;
       }
 
-      setState(s => ({ ...s, step: 'vehicle_selected', selectedType: type!.name, fluids: type!.fluids }));
-      const html = fluidIntroHtml(state.dataSource, state.selectedMake, state.selectedModel) + type.fluids.map(f => fluidToHtml(f)).join('<hr class="my-2 border-[#333]"/>') + fluidDisclaimer(state.dataSource);
-      botReply(
-        fluidIntroText(state.dataSource, state.selectedMake, state.selectedModel),
-        html,
-        [
-          { label: 'Order products', value: 'order' },
-          { label: 'New vehicle', value: 'reset' },
-        ]
-      );
+      displayFluidsForType(state.selectedMake, state.selectedModel, type, state.dataSource, botReply);
       return;
     }
-  }, [state, addBot, botReply, findMake, parseVehicleFromSentence, basePath, detectDomain, switchDomain]);
+  }, [state, addBot, botReply, findMake, parseVehicleFromSentence, basePath, detectDomain, switchDomain, displayFluidsForType]);
 
   const handleSend = useCallback((overrideText?: string) => {
     const text = (overrideText || input).trim();

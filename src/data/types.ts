@@ -1,21 +1,25 @@
-export type VehicleDomain = 'automotive' | 'motorcycle' | 'marine';
+export type VehicleDomain = 'automotive' | 'motorcycle' | 'marine' | 'heavy-duty';
 
 export const VEHICLE_DOMAINS: { id: VehicleDomain; label: string; icon: string }[] = [
   { id: 'automotive', label: 'Automotive', icon: '🚗' },
   { id: 'motorcycle', label: 'Motorcycle', icon: '🏍️' },
   { id: 'marine', label: 'Marine', icon: '⛵' },
+  { id: 'heavy-duty', label: 'Heavy-Duty', icon: '🚛' },
 ];
 
 /** Returns the data path prefix for a given domain */
 export function domainDataPath(domain: VehicleDomain): string {
-  return domain === 'automotive' ? '/data/' : `/data/${domain}/`;
+  if (domain === 'automotive') return '/data/';
+  return `/data/${domain}/`;
 }
 
 /** Keywords that indicate domain intent in chat messages (generic nouns only) */
 export const DOMAIN_INTENT_KEYWORDS: Record<VehicleDomain, string[]> = {
-  automotive: ['car', 'truck', 'suv', 'van', 'sedan', 'auto', 'automobile'],
+  automotive: ['car', 'suv', 'van', 'sedan', 'auto', 'automobile'],
   motorcycle: ['motorcycle', 'bike', 'motorbike', 'cruiser', 'sportbike', 'dirtbike', 'dirt bike', 'scooter'],
   marine: ['boat', 'marine', 'outboard', 'watercraft', 'pwc', 'jet ski', 'jetski', 'pontoon', 'vessel'],
+  'heavy-duty': ['heavy duty', 'heavy-duty', 'semi', 'truck tractor', 'fleet truck', 'class 8',
+                  'diesel truck', 'semi truck', 'tractor trailer', 'big rig', 'class 7', 'class 6'],
 };
 
 /** Makes strongly associated with a single non-automotive domain (NOT ambiguous makes like Honda/Yamaha) */
@@ -32,6 +36,15 @@ export const DOMAIN_MAKE_HINTS: Record<string, VehicleDomain> = {
   'nautique': 'marine',
   'malibu boats': 'marine',
   'mastercraft': 'marine',
+  'freightliner': 'heavy-duty',
+  'peterbilt': 'heavy-duty',
+  'kenworth': 'heavy-duty',
+  'mack': 'heavy-duty',
+  'volvo truck': 'heavy-duty',
+  'volvo trucks': 'heavy-duty',
+  'western star': 'heavy-duty',
+  'hino': 'heavy-duty',
+  'international truck': 'heavy-duty',
 };
 
 export interface FluidSpec {
@@ -47,7 +60,7 @@ export interface FluidSpec {
 
 export interface VehicleType {
   name: string;     // e.g., "Camry 2.5L (2018-2025)"
-  fluids: FluidSpec[];
+  fluids: FluidSpec[] | number;
 }
 
 export interface ModelData {
