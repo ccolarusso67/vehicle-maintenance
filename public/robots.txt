@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://ultra1plus.com/vehicle-maintenance-guide/sitemap.xml
+Sitemap: https://ultra1plus-vehicle.netlify.app/sitemap.xml
