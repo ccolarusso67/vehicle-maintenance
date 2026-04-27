@@ -16,7 +16,12 @@ export default function Header() {
         {/* Top bar */}
         <div className="flex items-center justify-between py-4">
           {/* Logo */}
-          <a href="https://ultra1plus.com">
+          <a
+            href="https://ultra1plus.com/"
+            target="_top"
+            rel="noopener"
+            aria-label="Ultra1Plus home"
+          >
             <img
               src="https://cdn11.bigcommerce.com/s-w94u0bjkb6/images/stencil/original/recurso_1_1757027375__15872.original.png"
               alt="Ultra1Plus™ Premium Quality Oils"
