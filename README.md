@@ -30,8 +30,9 @@ Auxiliary Python scripts (run after the upstream backend publishes new fitment d
 # Merge fitment + legacy automotive catalog into a unified index
 python scripts/merge_automotive.py
 
-# Run regression tests (128 cases)
+# Run merge integrity and complete-coverage regression tests
 python scripts/test_merge.py
+python scripts/test_complete_coverage.py
 ```
 
 ---
@@ -64,7 +65,7 @@ For the full design: see [CLAUDE.md](./CLAUDE.md) §Domain Model Summary.
 
 ## Key Metrics
 
-- Automotive makes: **76** (3 fitment + 73 legacy)
+- Automotive makes: **139** / **2,142 model families** (3 mixed fitment-first + 136 legacy)
 - Motorcycle makes: **10**
 - Marine makes: **6**
 - Vehicle domains: 3 active + 1 frontend-only (Heavy-Duty)
@@ -120,7 +121,7 @@ ENZO is the natural-language assistant baked into the site. It is:
 
 1. **This is the deployment repo.** Frontend work happens in `~/Desktop/GitHub-Repos/vehicle-maintenance-live`, never the pricing-core workspace copy.
 2. **Zero deletes** on vehicle data files.
-3. **Fitment truth overrides legacy** — never the reverse.
+3. **Fitment truth wins exact model collisions**; the curated legacy catalog fills missing model families.
 4. **Motorcycle and marine data untouched** during automotive operations.
 5. **Ford 2012-2014 coolant data** must remain untouched.
 6. **No runtime backend calls.** Static export + CDN only.

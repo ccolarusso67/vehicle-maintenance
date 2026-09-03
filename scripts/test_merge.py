@@ -38,6 +38,7 @@ def main():
     marine_index = load(os.path.join(MARINE_DIR, "index.json"))
 
     merged_by_id = {e["id"]: e for e in merged_index}
+    merged_by_name = {e["name"]: e for e in merged_index}
     fitment_ids = {e["id"] for e in fitment_index}
 
     # ─── Test 1: Fitment truth preserved ───
@@ -47,18 +48,18 @@ def main():
     test("fitment index backup exists",
          os.path.exists(os.path.join(DATA_DIR, "index.fitment.json")))
 
-    test("fitment makes in merged index",
-         all(fid in merged_by_id for fid in fitment_ids),
-         f"missing: {fitment_ids - set(merged_by_id.keys())}")
+    test("fitment makes represented in merged index",
+         all(e["name"] in merged_by_name for e in fitment_index),
+         f"missing: {[e['name'] for e in fitment_index if e['name'] not in merged_by_name]}")
 
     for entry in fitment_index:
         fid = entry["id"]
-        merged_entry = merged_by_id.get(fid, {})
-        test(f"{fid} source = fitment",
-             merged_entry.get("source") == "fitment",
-             f"got: {merged_entry.get('source')}")
-        test(f"{fid} model count unchanged ({entry['models']})",
-             merged_entry.get("models") == entry["models"],
+        merged_entry = merged_by_name.get(entry["name"], {})
+        test(f"{fid} coverage = mixed",
+             merged_entry.get("coverage") == "mixed",
+             f"got: {merged_entry.get('coverage')}")
+        test(f"{fid} keeps at least {entry['models']} fitment models",
+             merged_entry.get("models", 0) >= entry["models"],
              f"got: {merged_entry.get('models')}")
 
         # Verify fitment JSON file is byte-identical (not modified)
@@ -135,13 +136,13 @@ def main():
     # ─── Test 6: ENZO sees expanded coverage ───
     print("\n6. ENZO sees expanded automotive coverage")
 
-    test("merged index has 76+ makes",
-         len(merged_index) >= 76,
+    test("merged index has at least 120 makes",
+         len(merged_index) >= 120,
          f"got: {len(merged_index)}")
 
     total_models = sum(e["models"] for e in merged_index)
-    test("total models > 700",
-         total_models > 700,
+    test("total models >= 2026",
+         total_models >= 2026,
          f"got: {total_models}")
 
     # All referenced files exist and parse
@@ -173,7 +174,8 @@ def main():
     valid_sources = all(e["source"] in ("fitment", "legacy") for e in merged_index)
     test("all sources are fitment or legacy", valid_sources)
 
-    fitment_count = sum(1 for e in merged_index if e["source"] == "fitment")
+    fitment_count = sum(1 for e in merged_index
+                        if e["source"] == "fitment" or e.get("coverage") == "mixed")
     test(f"fitment makes = {len(fitment_index)} (dynamic)",
          fitment_count == len(fitment_index),
          f"got: {fitment_count}")
@@ -247,13 +249,13 @@ def main():
         test("republish: merged index has source field",
              all("source" in e for e in remrg))
         test("republish: fitment makes present",
-             sum(1 for e in remrg if e.get("source") == "fitment") == len(fitment_index),
-             f"got: {sum(1 for e in remrg if e.get('source') == 'fitment')}")
+             sum(1 for e in remrg if e.get("source") == "fitment" or e.get("coverage") == "mixed") == len(fitment_index),
+             f"got: {sum(1 for e in remrg if e.get('source') == 'fitment' or e.get('coverage') == 'mixed')}")
         test("republish: legacy makes restored",
              sum(1 for e in remrg if e.get("source") == "legacy") > 30,
              f"got: {sum(1 for e in remrg if e.get('source') == 'legacy')}")
-        test("republish: total makes >= 76",
-             len(remrg) >= 76,
+        test("republish: total makes >= 120",
+             len(remrg) >= 120,
              f"got: {len(remrg)}")
         test("republish: fitment overrides legacy (no overlap)",
              len({e["id"] for e in remrg if e["source"] == "fitment"} &
@@ -273,10 +275,15 @@ def main():
         tiny_fitment = [{"name": "Ford", "id": "ford", "models": 7}]
         with open(os.path.join(tmpdir, "index.fitment.json"), "w") as f:
             json.dump(tiny_fitment, f)
+        with open(os.path.join(tmpdir, "ford.json"), "w") as f:
+            json.dump({"make": "Ford", "models": [
+                {"name": "Fusion (2018)", "types": []}
+            ]}, f)
 
         # Merge should abort because result (1 fitment + 0 legacy) << 100
         try:
-            merge_automotive.merge(data_dir=tmpdir, min_catalog_ratio=0.9)
+            merge_automotive.merge(data_dir=tmpdir, min_catalog_ratio=0.9,
+                                   coverage_ids=[])
             guardrail_triggered = False
         except ValueError as e:
             guardrail_triggered = "MERGE ABORTED" in str(e)

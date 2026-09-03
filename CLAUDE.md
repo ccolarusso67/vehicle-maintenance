@@ -38,7 +38,8 @@ The site is **statically exported** by Next.js and served by Netlify — there i
 | `src/components/Header.tsx` | Site header / nav |
 | `src/data/types.ts` | TypeScript interfaces: `VehicleDomain`, `FluidSpec`, `MakeIndex`, etc. |
 | `public/data/` | Vehicle spec JSON files (published from pricing-core) |
-| `public/data/index.json` | Automotive catalog (76 makes — fitment + legacy) |
+| `public/data/index.json` | Automotive catalog (139 makes / 2,142 model families — fitment-first + curated legacy coverage) |
+| `scripts/coverage-files.txt` | Durable allowlist for the published automotive coverage layer |
 | `public/data/motorcycle/index.json` | Motorcycle catalog (10 makes) |
 | `public/data/marine/index.json` | Marine catalog (6 makes) |
 | `scripts/merge_automotive.py` | Post-publish merge: fitment + legacy automotive catalog |
@@ -57,7 +58,7 @@ The site is **statically exported** by Next.js and served by Netlify — there i
 | Vehicle / fluid data | `public/data/*.json` (only) | Never hardcoded in components; never fetched from a runtime API |
 | Imperial display conversion | `ChatBot.tsx` + `FluidCard.tsx` formatting rules | Source JSON is metric (L / km / g) — conversion is display-only |
 | Product cross-reference | Ultra1Plus SKU IDs in the fluid data | Linked to product pages and Add-to-Cart |
-| Catalog truth precedence | Fitment data > legacy data (always) | Set during `merge_automotive.py` — never reversed |
+| Catalog truth precedence | Fitment wins exact model collisions; curated legacy fills missing families | Set during `merge_automotive.py` |
 
 If you add a new feature that needs vehicle data, READ FROM `public/data/`. Do not hardcode and do not introduce a runtime API.
 
@@ -69,7 +70,7 @@ If you add a new feature that needs vehicle data, READ FROM `public/data/`. Do n
 
 | Domain | Makes | Catalog path | Notes |
 |--------|-------|--------------|-------|
-| Automotive | 76 (3 fitment + 73 legacy) | `/data/index.json` | Merged via `merge_automotive.py` |
+| Automotive | 139 (3 mixed fitment-first + 136 legacy) | `/data/index.json` | Merged via `merge_automotive.py` |
 | Motorcycle | 10 | `/data/motorcycle/index.json` | Fitment-only |
 | Marine | 6 | `/data/marine/index.json` | Fitment-only |
 | Heavy-Duty | TBD | `/data/heavy-duty/index.json` | Frontend-only (no backend pipeline yet) |
@@ -147,7 +148,7 @@ Frontend has no secrets — all data is public-facing JSON. Any sensitive integr
 
 1. **This is the deployment repo.** All frontend changes happen here. The standalone clone is the authoritative path; the pricing-core workspace copy is read-only.
 2. **Zero deletes** on vehicle data files. Source JSON in `public/data/` is append-only from the frontend's perspective; only the backend publish pipeline writes it.
-3. **Fitment truth overrides legacy** — never the reverse. Enforced by `merge_automotive.py`.
+3. **Fitment truth wins exact model collisions**; curated legacy data may add missing model families. Enforced by `merge_automotive.py`.
 4. **Motorcycle and marine data untouched** during automotive operations. They live in separate indices for exactly this reason.
 5. **Ford 2012-2014 coolant data must remain untouched.** Specific historical edge case — do not regenerate.
 6. **No runtime API calls.** Data is static JSON loaded client-side; do not introduce server-side fetches.

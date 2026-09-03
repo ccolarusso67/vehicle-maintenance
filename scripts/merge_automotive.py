@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 Build-time automotive merge: combines fitment-approved data (truth layer)
-with legacy USA/CAN Ravenol crossref data (coverage layer).
+with the curated legacy catalog (coverage layer).
 
 Rules:
-  - Fitment makes always override legacy — derived dynamically from fitment index
+  - Fitment models win exact-name collisions; legacy adds missing model families
   - Fitment JSON files are NEVER modified (byte-identical preservation)
-  - Legacy files are copied with normalized IDs and cleaned make names
+  - Coverage is explicit in coverage-files.txt; raw orphan files are not published
   - Source provenance stored in merged index entries, not in data files
   - Motorcycle and marine directories are never touched
 """
@@ -22,33 +22,11 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "public", "data")
 FITMENT_INDEX_BACKUP = "index.fitment.json"
 MERGED_INDEX = "index.json"
 MERGE_MANIFEST = "merge_manifest.json"
-
-# Region patterns for USA/CAN legacy files
-USA_CAN_PATTERNS = [
-    re.compile(r"__usa___can_\.json$"),
-    re.compile(r"__usa_\.json$"),
-]
-
-# Region-neutral files that are USA-relevant (no region suffix, not hash-named)
-# These are included if they have real make names (not hex hashes)
-HASH_PATTERN = re.compile(r"^[0-9a-f]{6,}\.json$")
-
-# Suffixes to strip when normalizing make IDs
-REGION_SUFFIXES = re.compile(r"__(?:usa|can|bra|eu|tur|rus|chn|jpn)(?:___(?:usa|can|bra|eu|tur|rus|chn|jpn))?(?:_\d+)?$")
+COVERAGE_FILES = os.path.join(os.path.dirname(__file__), "coverage-files.txt")
+MIXED_FILE_SUFFIX = "_coverage"
 
 # Parenthetical region markers to strip from display names
 REGION_DISPLAY = re.compile(r"\s*\((?:USA|CAN|USA / CAN|BRA|EU|TUR|RUS|CHN|JPN)[^)]*\)\s*$")
-
-
-def normalize_make_id(filename: str) -> str:
-    """Convert legacy filename to a clean make ID (base make only, no region)."""
-    base = filename.replace(".json", "")
-    # Strip everything from first double-underscore onward (region markers)
-    if "__" in base:
-        base = base[:base.index("__")]
-    # Collapse multiple underscores, strip edges
-    clean = re.sub(r"_+", "_", base).strip("_")
-    return clean.lower()
 
 
 def clean_make_name(name: str) -> str:
@@ -73,59 +51,52 @@ def load_fitment_index(data_dir: str) -> list:
         return json.load(f)
 
 
-def find_legacy_usa_files(data_dir: str) -> list:
-    """Find all USA/CAN legacy automotive files."""
-    candidates = []
-    for fn in sorted(os.listdir(data_dir)):
-        if not fn.endswith(".json"):
-            continue
-        if fn in (MERGED_INDEX, FITMENT_INDEX_BACKUP, MERGE_MANIFEST):
-            continue
-        # Skip motorcycle/marine subdirectories (handled by listdir on data_dir only)
-        fpath = os.path.join(data_dir, fn)
-        if not os.path.isfile(fpath):
-            continue
-        # Match USA/CAN files
-        if any(p.search(fn) for p in USA_CAN_PATTERNS):
-            candidates.append(fn)
-    return candidates
+def load_coverage_index(data_dir: str, coverage_ids: list = None) -> list:
+    """Load the durable last-known-complete coverage inventory."""
+    if coverage_ids is None:
+        with open(COVERAGE_FILES) as f:
+            ids = [line.strip() for line in f
+                   if line.strip() and not line.lstrip().startswith("#")]
+    else:
+        ids = coverage_ids
+
+    if len(ids) != len(set(ids)):
+        raise ValueError("coverage-files.txt contains duplicate IDs")
+
+    coverage = []
+    for make_id in ids:
+        path = os.path.join(data_dir, f"{make_id}.json")
+        if not os.path.exists(path):
+            raise ValueError(f"coverage file missing: {make_id}.json")
+        with open(path) as f:
+            data = json.load(f)
+        models = data.get("models")
+        if not isinstance(models, list) or not models:
+            raise ValueError(f"coverage file has no models: {make_id}.json")
+        coverage.append({
+            "name": clean_make_name(data.get("make", make_id)),
+            "id": make_id,
+            "models": len(models),
+        })
+    return coverage
 
 
-def find_region_neutral_usa_relevant(data_dir: str, fitment_ids: set, legacy_ids: set) -> list:
-    """Find region-neutral files that are USA-relevant and not already covered."""
-    extras = []
-    for fn in sorted(os.listdir(data_dir)):
-        if not fn.endswith(".json") or not os.path.isfile(os.path.join(data_dir, fn)):
-            continue
-        if fn in (MERGED_INDEX, FITMENT_INDEX_BACKUP, MERGE_MANIFEST):
-            continue
-        # Skip files with region suffixes (already handled)
-        if "__" in fn:
-            continue
-        # Skip hash-named files
-        if HASH_PATTERN.match(fn):
-            continue
-        # Skip fitment files
-        norm_id = fn.replace(".json", "").lower()
-        if norm_id in fitment_ids:
-            continue
-        # Skip if already covered by a USA/CAN file
-        if norm_id in legacy_ids:
-            continue
-        # Must have real data
-        try:
-            with open(os.path.join(data_dir, fn)) as f:
-                data = json.load(f)
-            if not data.get("models"):
-                continue
-            # Skip marine/motorcycle data that leaked into root
-            make_lower = data.get("make", "").lower()
-            if make_lower in ("sea-doo", "volvo penta", "yamaha", "suzuki"):
-                continue
-            extras.append(fn)
-        except (json.JSONDecodeError, KeyError):
-            continue
-    return extras
+def merge_fitment_with_coverage(fitment_data: dict, coverage_data: dict) -> dict:
+    """Return fitment models first, then non-duplicate coverage models."""
+    merged_models = list(fitment_data.get("models", []))
+    seen = {
+        re.sub(r"\s+", " ", model.get("name", "").strip()).casefold()
+        for model in merged_models
+    }
+    for model in coverage_data.get("models", []):
+        key = re.sub(r"\s+", " ", model.get("name", "").strip()).casefold()
+        if key and key not in seen:
+            merged_models.append(model)
+            seen.add(key)
+    return {
+        "make": clean_make_name(fitment_data.get("make", coverage_data.get("make", ""))),
+        "models": merged_models,
+    }
 
 
 def get_merge_status(data_dir: str = None) -> dict:
@@ -147,8 +118,14 @@ def get_merge_status(data_dir: str = None) -> dict:
             merged = json.load(f)
         result["total_makes"] = len(merged)
         result["total_models"] = sum(e.get("models", 0) for e in merged)
-        result["fitment_makes"] = sum(1 for e in merged if e.get("source") == "fitment")
-        result["legacy_makes"] = sum(1 for e in merged if e.get("source") == "legacy")
+        result["fitment_makes"] = sum(
+            1 for e in merged
+            if e.get("source") == "fitment" or e.get("coverage") == "mixed"
+        )
+        result["legacy_makes"] = sum(
+            1 for e in merged
+            if e.get("source") == "legacy" and e.get("coverage") != "mixed"
+        )
 
         if os.path.exists(fitment_path):
             with open(fitment_path) as f:
@@ -170,7 +147,7 @@ def get_merge_status(data_dir: str = None) -> dict:
 
 
 def merge(data_dir: str = None, dry_run: bool = False,
-          min_catalog_ratio: float = 0.9) -> dict:
+          min_catalog_ratio: float = 0.9, coverage_ids: list = None) -> dict:
     """Run the automotive merge. Returns a manifest dict.
 
     Args:
@@ -178,6 +155,7 @@ def merge(data_dir: str = None, dry_run: bool = False,
         dry_run: If True, don't write any files.
         min_catalog_ratio: If merged result is smaller than this fraction
             of the current catalog, abort to prevent accidental shrinkage.
+        coverage_ids: Optional injected coverage IDs for focused tests.
     """
     if data_dir is None:
         data_dir = os.path.abspath(DATA_DIR)
@@ -195,8 +173,6 @@ def merge(data_dir: str = None, dry_run: bool = False,
     # Step 1: Load fitment index (truth layer)
     fitment_index = load_fitment_index(data_dir)
     fitment_ids = {entry["id"] for entry in fitment_index}
-    fitment_id_to_entry = {entry["id"]: entry for entry in fitment_index}
-
     print(f"Fitment makes ({len(fitment_ids)}): {sorted(fitment_ids)}")
 
     # Step 2: Backup fitment index if not already backed up
@@ -208,103 +184,70 @@ def merge(data_dir: str = None, dry_run: bool = False,
         )
         print(f"Backed up fitment index to {FITMENT_INDEX_BACKUP}")
 
-    # Step 3: Find legacy USA/CAN files
-    usa_files = find_legacy_usa_files(data_dir)
-    print(f"Found {len(usa_files)} USA/CAN legacy files")
+    # Step 3: Load the durable coverage inventory. This is deliberately
+    # separate from index.json because fitment publishes can replace index.json.
+    coverage_index = load_coverage_index(data_dir, coverage_ids=coverage_ids)
+    print(f"Coverage makes: {len(coverage_index)}")
 
-    # Step 4: Normalize and deduplicate legacy files
-    legacy_by_id = {}  # normalized_id -> (filename, model_count, clean_name)
-    for fn in usa_files:
-        norm_id = normalize_make_id(fn)
-        # Skip if fitment already covers this make
-        if norm_id in fitment_ids:
-            print(f"  SKIP {fn} → {norm_id} (fitment override)")
-            continue
-        try:
-            with open(os.path.join(data_dir, fn)) as f:
-                data = json.load(f)
-            model_count = len(data.get("models", []))
-            display_name = clean_make_name(data.get("make", norm_id))
-            # Deduplicate: keep file with more models
-            if norm_id in legacy_by_id:
-                existing = legacy_by_id[norm_id]
-                if model_count <= existing[1]:
-                    print(f"  SKIP {fn} → {norm_id} (duplicate, fewer models: {model_count} vs {existing[1]})")
-                    continue
-                print(f"  REPLACE {existing[0]} with {fn} → {norm_id} ({model_count} vs {existing[1]} models)")
-            legacy_by_id[norm_id] = (fn, model_count, display_name)
-        except (json.JSONDecodeError, KeyError) as e:
-            print(f"  ERROR {fn}: {e}")
-
-    # Step 5: Find region-neutral USA-relevant files
-    neutral_files = find_region_neutral_usa_relevant(data_dir, fitment_ids, set(legacy_by_id.keys()))
-    for fn in neutral_files:
-        norm_id = fn.replace(".json", "").lower()
-        try:
-            with open(os.path.join(data_dir, fn)) as f:
-                data = json.load(f)
-            model_count = len(data.get("models", []))
-            display_name = clean_make_name(data.get("make", norm_id))
-            legacy_by_id[norm_id] = (fn, model_count, display_name)
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-    print(f"Legacy makes after dedup: {len(legacy_by_id)}")
-
-    # Step 6: Create normalized copies of legacy files (clean make names)
-    created_files = []
-    for norm_id, (src_fn, model_count, display_name) in sorted(legacy_by_id.items()):
-        target_fn = f"{norm_id}.json"
-        src_path = os.path.join(data_dir, src_fn)
-        target_path = os.path.join(data_dir, target_fn)
-
-        if src_fn == target_fn:
-            # File already has the correct name — check if make name needs cleaning
-            with open(src_path) as f:
-                data = json.load(f)
-            if data.get("make") != display_name:
-                if not dry_run:
-                    data["make"] = display_name
-                    with open(target_path, "w") as f:
-                        json.dump(data, f, separators=(",", ":"))
-                created_files.append(target_fn)
-                print(f"  CLEANED {target_fn} (name: {display_name})")
-            else:
-                print(f"  OK {target_fn} (already clean)")
-        else:
-            # Copy and normalize
-            with open(src_path) as f:
-                data = json.load(f)
-            data["make"] = display_name
-            if not dry_run:
-                with open(target_path, "w") as f:
-                    json.dump(data, f, separators=(",", ":"))
-            created_files.append(target_fn)
-            print(f"  COPY {src_fn} → {target_fn} (name: {display_name}, {model_count} models)")
-
-    # Step 7: Build merged index with provenance
+    # Step 4: Build a fitment-first union. A fitment make no longer suppresses
+    # the entire legacy make; it replaces only exact model-name collisions.
+    coverage_by_name = {entry["name"].casefold(): entry for entry in coverage_index}
     merged_index = []
+    created_files = []
+    mixed_makes = []
 
-    # Fitment makes first (sorted by name)
-    for entry in sorted(fitment_index, key=lambda e: e["name"]):
+    for entry in fitment_index:
+        fitment_path = os.path.join(data_dir, f"{entry['id']}.json")
+        with open(fitment_path) as f:
+            fitment_data = json.load(f)
+
+        coverage_entry = coverage_by_name.pop(clean_make_name(entry["name"]).casefold(), None)
+        if coverage_entry is None:
+            merged_index.append({
+                "name": clean_make_name(entry["name"]),
+                "id": entry["id"],
+                "models": len(fitment_data.get("models", [])),
+                "source": "fitment",
+            })
+            continue
+
+        coverage_path = os.path.join(data_dir, f"{coverage_entry['id']}.json")
+        with open(coverage_path) as f:
+            coverage_data = json.load(f)
+        mixed_data = merge_fitment_with_coverage(fitment_data, coverage_data)
+        mixed_id = f"{entry['id']}{MIXED_FILE_SUFFIX}"
+        mixed_path = os.path.join(data_dir, f"{mixed_id}.json")
+        if not dry_run:
+            tmp_path = mixed_path + ".tmp"
+            with open(tmp_path, "w") as f:
+                json.dump(mixed_data, f, separators=(",", ":"))
+            os.replace(tmp_path, mixed_path)
+        created_files.append(f"{mixed_id}.json")
+        mixed_makes.append(entry["id"])
+        # Conservative customer-facing language: until provenance is carried
+        # per model, mixed makes use the legacy disclaimer rather than calling
+        # every model verified.
         merged_index.append({
-            "name": entry["name"],
-            "id": entry["id"],
-            "models": entry["models"],
-            "source": "fitment",
+            "name": clean_make_name(entry["name"]),
+            "id": mixed_id,
+            "models": len(mixed_data["models"]),
+            "source": "legacy",
+            "coverage": "mixed",
         })
 
-    # Legacy makes after (sorted by name)
-    for norm_id in sorted(legacy_by_id.keys(), key=lambda k: legacy_by_id[k][2]):
-        src_fn, model_count, display_name = legacy_by_id[norm_id]
+    # Step 5: Add all remaining coverage-only makes unchanged.
+    for entry in coverage_by_name.values():
         merged_index.append({
-            "name": display_name,
-            "id": norm_id,
-            "models": model_count,
+            "name": clean_make_name(entry["name"]),
+            "id": entry["id"],
+            "models": entry["models"],
             "source": "legacy",
         })
 
-    # Step 8: Catalog size guardrail — abort if suspicious shrinkage
+    merged_index.sort(key=lambda entry: entry["name"].casefold())
+    print(f"Merged coverage: {len(merged_index)} makes; mixed: {mixed_makes}")
+
+    # Step 6: Catalog size guardrail — abort if suspicious shrinkage
     if pre_merge_count > 10 and len(merged_index) < pre_merge_count * min_catalog_ratio:
         raise ValueError(
             f"MERGE ABORTED: catalog would shrink from {pre_merge_count} to "
@@ -312,7 +255,7 @@ def merge(data_dir: str = None, dry_run: bool = False,
             f"Threshold: {min_catalog_ratio:.0%}. Current index preserved."
         )
 
-    # Step 9: Write merged index (atomic: write temp, rename)
+    # Step 7: Write merged index (atomic: write temp, rename)
     if not dry_run:
         merged_path = os.path.join(data_dir, MERGED_INDEX)
         tmp_path = merged_path + ".tmp"
@@ -321,11 +264,16 @@ def merge(data_dir: str = None, dry_run: bool = False,
         os.replace(tmp_path, merged_path)
         print(f"\nWrote merged {MERGED_INDEX}: {len(merged_index)} makes")
 
-    # Step 10: Write merge manifest
+    # Step 8: Write merge manifest
     manifest = {
         "merged_at": datetime.now(timezone.utc).isoformat(),
         "fitment_makes": len(fitment_ids),
-        "legacy_makes": len(legacy_by_id),
+        "coverage_makes": len(coverage_index),
+        "legacy_makes": sum(
+            1 for entry in merged_index
+            if entry["source"] == "legacy" and entry.get("coverage") != "mixed"
+        ),
+        "mixed_makes": mixed_makes,
         "total_makes": len(merged_index),
         "pre_merge_count": pre_merge_count,
         "fitment_entries": [e for e in merged_index if e["source"] == "fitment"],
