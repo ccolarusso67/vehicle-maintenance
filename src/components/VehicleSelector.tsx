@@ -51,6 +51,14 @@ function isMakeData(value: unknown): value is MakeData {
     && typeof model.name === 'string'
     && 'types' in model
     && Array.isArray(model.types)
+    && model.types.every((type: unknown) => (
+      type !== null
+      && typeof type === 'object'
+      && 'name' in type
+      && typeof type.name === 'string'
+      && 'fluids' in type
+      && (Array.isArray(type.fluids) || typeof type.fluids === 'number')
+    ))
   ));
 }
 
@@ -340,6 +348,8 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   }
 
   function handleModelChange(model: string) {
+    makeRequestRef.current += 1;
+    setLoading(false);
     setQuickPickError(null);
     setSelectedModel(model);
     setSelectedType('');
@@ -357,6 +367,8 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   }
 
   function handleTypeChange(typeName: string) {
+    const requestId = ++makeRequestRef.current;
+    setLoading(false);
     setQuickPickError(null);
     setSelectedType(typeName);
 
@@ -376,6 +388,7 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
         setLoading(true);
         fetchVehicleFluids(domain, makeData.make, selectedModel, typeName)
           .then(fluids => {
+            if (requestId !== makeRequestRef.current) return;
             if (fluids && fluids.length > 0) {
               const enrichedType: VehicleType = { name: typeName, fluids };
               onSelect({ make: makeData.make, model: selectedModel, type: enrichedType });
@@ -385,9 +398,13 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
             }
           })
           .catch(() => {
-            onSelect({ make: makeData.make, model: selectedModel, type });
+            if (requestId === makeRequestRef.current) {
+              onSelect({ make: makeData.make, model: selectedModel, type });
+            }
           })
-          .finally(() => setLoading(false));
+          .finally(() => {
+            if (requestId === makeRequestRef.current) setLoading(false);
+          });
       } else {
         onSelect({ make: makeData.make, model: selectedModel, type });
       }
