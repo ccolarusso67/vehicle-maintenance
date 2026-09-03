@@ -3,6 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MakeIndex, MakeData, VehicleType, VehicleDomain, domainDataPath, FluidSpec } from '@/data/types';
 import { isApiEnabled, fetchVehicleFluids } from '@/lib/fitmentApi';
+import {
+  findQuickPickMake,
+  findQuickPickModel,
+  POPULAR_VEHICLES,
+  type PopularVehicle,
+} from '@/lib/vehicleQuickPick';
 
 /** Strip region suffix like "(USA / CAN)" or "(USA)" from make names */
 function cleanMakeName(name: string): string {
@@ -34,19 +40,6 @@ interface DropdownOption {
   label: string;
   sublabel?: string;
 }
-
-const POPULAR_VEHICLES = [
-  { make: 'Ford (USA)', model: 'F-150', label: 'Ford F-150' },
-  { make: 'Chevrolet (USA / CAN)', model: 'Silverado', label: 'Chevy Silverado' },
-  { make: 'Ram', model: '1500', label: 'Ram 1500' },
-  { make: 'Toyota (USA / CAN)', model: 'Camry', label: 'Toyota Camry' },
-  { make: 'Toyota (USA / CAN)', model: 'RAV4', label: 'Toyota RAV4' },
-  { make: 'Honda (USA / CAN)', model: 'Civic', label: 'Honda Civic' },
-  { make: 'Honda (USA / CAN)', model: 'CR-V', label: 'Honda CR-V' },
-  { make: 'Tesla (USA)', model: 'Model', label: 'Tesla Model 3/Y' },
-  { make: 'Jeep (USA / CAN)', model: 'Grand Cherokee', label: 'Jeep Grand Cherokee' },
-  { make: 'Nissan (USA / CAN)', model: 'Rogue', label: 'Nissan Rogue' },
-];
 
 function SearchableDropdown({
   label,
@@ -362,8 +355,8 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
     }
   }
 
-  function handleQuickPick(qp: typeof POPULAR_VEHICLES[0]) {
-    const makeInfo = makes.find(m => m.name === qp.make);
+  function handleQuickPick(qp: PopularVehicle) {
+    const makeInfo = findQuickPickMake(makes, qp.make);
     if (!makeInfo) return;
 
     setSelectedMake(qp.make);
@@ -380,7 +373,7 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
         setLoading(false);
 
         // Find best model match
-        const model = data.models.find(m => m.name.includes(qp.model));
+        const model = findQuickPickModel(data.models, qp.model);
         if (model) {
           setSelectedModel(model.name);
           if (model.types.length === 1) {
