@@ -1,28 +1,16 @@
 {
-  "merged_at": "2026-03-27T16:06:28.057754+00:00",
+  "merged_at": "2026-09-03T17:48:25.317415+00:00",
   "fitment_makes": 3,
-  "legacy_makes": 73,
-  "total_makes": 76,
-  "fitment_entries": [
-    {
-      "name": "Ford",
-      "id": "ford",
-      "models": 7,
-      "source": "fitment"
-    },
-    {
-      "name": "Honda",
-      "id": "honda",
-      "models": 7,
-      "source": "fitment"
-    },
-    {
-      "name": "Toyota",
-      "id": "toyota",
-      "models": 7,
-      "source": "fitment"
-    }
+  "coverage_makes": 139,
+  "legacy_makes": 136,
+  "mixed_makes": [
+    "ford",
+    "honda",
+    "toyota"
   ],
+  "total_makes": 139,
+  "pre_merge_count": 139,
+  "fitment_entries": [],
   "legacy_entries": [
     {
       "name": "Abarth",
@@ -34,6 +22,12 @@
       "name": "Acura",
       "id": "acura",
       "models": 34,
+      "source": "legacy"
+    },
+    {
+      "name": "AGCO / Fendt (Tractors)",
+      "id": "5daf67a2",
+      "models": 6,
       "source": "legacy"
     },
     {
@@ -50,8 +44,8 @@
     },
     {
       "name": "Alpine",
-      "id": "alpine",
-      "models": 1,
+      "id": "45a94c5a",
+      "models": 3,
       "source": "legacy"
     },
     {
@@ -85,21 +79,21 @@
       "source": "legacy"
     },
     {
-      "name": "BMW",
-      "id": "bmw",
-      "models": 88,
-      "source": "legacy"
-    },
-    {
-      "name": "BYD",
-      "id": "byd",
-      "models": 2,
+      "name": "BAIC",
+      "id": "5b8262c4",
+      "models": 7,
       "source": "legacy"
     },
     {
       "name": "Bentley",
       "id": "bentley",
       "models": 18,
+      "source": "legacy"
+    },
+    {
+      "name": "BMW",
+      "id": "bmw",
+      "models": 88,
       "source": "legacy"
     },
     {
@@ -121,9 +115,33 @@
       "source": "legacy"
     },
     {
+      "name": "BYD",
+      "id": "fa5cc085",
+      "models": 11,
+      "source": "legacy"
+    },
+    {
       "name": "Cadillac",
       "id": "cadillac",
       "models": 26,
+      "source": "legacy"
+    },
+    {
+      "name": "Case IH (Tractors)",
+      "id": "3e47a83b",
+      "models": 8,
+      "source": "legacy"
+    },
+    {
+      "name": "Caterpillar (Equipment)",
+      "id": "31a8fc59",
+      "models": 6,
+      "source": "legacy"
+    },
+    {
+      "name": "Changan",
+      "id": "bc54f050",
+      "models": 12,
       "source": "legacy"
     },
     {
@@ -145,21 +163,69 @@
       "source": "legacy"
     },
     {
-      "name": "Cupra",
-      "id": "cupra",
-      "models": 4,
+      "name": "Citroen",
+      "id": "790dfc42",
+      "models": 10,
       "source": "legacy"
     },
     {
-      "name": "DR",
-      "id": "dr",
+      "name": "Classic BMW",
+      "id": "d570be8e",
+      "models": 3,
+      "source": "legacy"
+    },
+    {
+      "name": "Classic Chevrolet",
+      "id": "9a9e6cbb",
       "models": 5,
       "source": "legacy"
     },
     {
-      "name": "DS",
-      "id": "ds",
-      "models": 7,
+      "name": "Classic Dodge / Plymouth",
+      "id": "a4277625",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "Classic Ford",
+      "id": "9243414a",
+      "models": 6,
+      "source": "legacy"
+    },
+    {
+      "name": "Classic Jaguar",
+      "id": "d8270263",
+      "models": 3,
+      "source": "legacy"
+    },
+    {
+      "name": "Classic Mercedes-Benz",
+      "id": "4dbf3929",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "Classic Pontiac",
+      "id": "e3b94709",
+      "models": 2,
+      "source": "legacy"
+    },
+    {
+      "name": "Classic Porsche",
+      "id": "95859d98",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "Classic Volkswagen",
+      "id": "20ae62d6",
+      "models": 3,
+      "source": "legacy"
+    },
+    {
+      "name": "CUPRA",
+      "id": "586e340f",
+      "models": 6,
       "source": "legacy"
     },
     {
@@ -187,9 +253,27 @@
       "source": "legacy"
     },
     {
-      "name": "FSO",
-      "id": "fso",
-      "models": 1,
+      "name": "Dongfeng",
+      "id": "cda24f99",
+      "models": 9,
+      "source": "legacy"
+    },
+    {
+      "name": "DR",
+      "id": "dr",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
+      "name": "DS",
+      "id": "ds",
+      "models": 7,
+      "source": "legacy"
+    },
+    {
+      "name": "FAW",
+      "id": "48d29ce6",
+      "models": 10,
       "source": "legacy"
     },
     {
@@ -211,15 +295,28 @@
       "source": "legacy"
     },
     {
-      "name": "GAZ",
-      "id": "gaz",
+      "name": "Ford",
+      "id": "ford_coverage",
+      "models": 74,
+      "source": "legacy",
+      "coverage": "mixed"
+    },
+    {
+      "name": "Freightliner (Trucks)",
+      "id": "94769084",
       "models": 4,
       "source": "legacy"
     },
     {
-      "name": "GMC",
-      "id": "gmc",
-      "models": 15,
+      "name": "FSO",
+      "id": "fso",
+      "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "GAC",
+      "id": "b7f13297",
+      "models": 11,
       "source": "legacy"
     },
     {
@@ -229,10 +326,53 @@
       "source": "legacy"
     },
     {
+      "name": "GAZ",
+      "id": "gaz",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "Geely",
+      "id": "f8e93afa",
+      "models": 10,
+      "source": "legacy"
+    },
+    {
       "name": "Genesis",
       "id": "genesis",
       "models": 12,
       "source": "legacy"
+    },
+    {
+      "name": "GMC",
+      "id": "gmc",
+      "models": 15,
+      "source": "legacy"
+    },
+    {
+      "name": "Haval",
+      "id": "2bd2b70e",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
+      "name": "Hino (Trucks)",
+      "id": "cb82ae1e",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
+      "name": "Holden",
+      "id": "6d323008",
+      "models": 9,
+      "source": "legacy"
+    },
+    {
+      "name": "Honda",
+      "id": "honda_coverage",
+      "models": 71,
+      "source": "legacy",
+      "coverage": "mixed"
     },
     {
       "name": "Hongqi",
@@ -259,6 +399,12 @@
       "source": "legacy"
     },
     {
+      "name": "International (Trucks)",
+      "id": "2782ec6e",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
       "name": "Isuzu",
       "id": "isuzu",
       "models": 2,
@@ -268,6 +414,12 @@
       "name": "Iveco",
       "id": "iveco",
       "models": 1,
+      "source": "legacy"
+    },
+    {
+      "name": "JAC",
+      "id": "d64f706a",
+      "models": 8,
       "source": "legacy"
     },
     {
@@ -283,15 +435,33 @@
       "source": "legacy"
     },
     {
+      "name": "John Deere (Tractors)",
+      "id": "857bb629",
+      "models": 12,
+      "source": "legacy"
+    },
+    {
+      "name": "Kenworth (Trucks)",
+      "id": "4a773253",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
       "name": "Kia",
       "id": "kia",
       "models": 53,
       "source": "legacy"
     },
     {
-      "name": "LEVC",
-      "id": "levc",
-      "models": 2,
+      "name": "Kubota (Tractors)",
+      "id": "c3766074",
+      "models": 10,
+      "source": "legacy"
+    },
+    {
+      "name": "LADA",
+      "id": "be637175",
+      "models": 6,
       "source": "legacy"
     },
     {
@@ -325,9 +495,21 @@
       "source": "legacy"
     },
     {
+      "name": "LEVC",
+      "id": "levc",
+      "models": 2,
+      "source": "legacy"
+    },
+    {
       "name": "Lexus",
       "id": "lexus",
       "models": 47,
+      "source": "legacy"
+    },
+    {
+      "name": "Li Auto",
+      "id": "8fb26601",
+      "models": 5,
       "source": "legacy"
     },
     {
@@ -343,15 +525,51 @@
       "source": "legacy"
     },
     {
-      "name": "MINI",
-      "id": "mini",
-      "models": 20,
+      "name": "Lucid",
+      "id": "bd23b25c",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
+      "name": "Lynk & Co",
+      "id": "a0fcdc18",
+      "models": 7,
+      "source": "legacy"
+    },
+    {
+      "name": "Mack (Trucks)",
+      "id": "837411c2",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
+      "name": "Mahindra",
+      "id": "02a5cc55",
+      "models": 10,
+      "source": "legacy"
+    },
+    {
+      "name": "Mahindra (Tractors)",
+      "id": "eddbe8ba",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "Maruti Suzuki",
+      "id": "739419bd",
+      "models": 14,
       "source": "legacy"
     },
     {
       "name": "Maserati",
       "id": "maserati",
       "models": 16,
+      "source": "legacy"
+    },
+    {
+      "name": "Massey Ferguson (Tractors)",
+      "id": "c3297166",
+      "models": 6,
       "source": "legacy"
     },
     {
@@ -379,9 +597,33 @@
       "source": "legacy"
     },
     {
+      "name": "MG",
+      "id": "ba2a034f",
+      "models": 10,
+      "source": "legacy"
+    },
+    {
+      "name": "MINI",
+      "id": "mini",
+      "models": 20,
+      "source": "legacy"
+    },
+    {
       "name": "Mitsubishi",
       "id": "mitsubishi",
       "models": 29,
+      "source": "legacy"
+    },
+    {
+      "name": "New Holland (Tractors)",
+      "id": "c466e9fe",
+      "models": 7,
+      "source": "legacy"
+    },
+    {
+      "name": "NIO",
+      "id": "b6d9dfc0",
+      "models": 10,
       "source": "legacy"
     },
     {
@@ -394,6 +636,30 @@
       "name": "Oldsmobile",
       "id": "oldsmobile",
       "models": 13,
+      "source": "legacy"
+    },
+    {
+      "name": "Opel",
+      "id": "31e9e7dc",
+      "models": 10,
+      "source": "legacy"
+    },
+    {
+      "name": "Perodua",
+      "id": "3ef5c550",
+      "models": 6,
+      "source": "legacy"
+    },
+    {
+      "name": "Peterbilt (Trucks)",
+      "id": "d146fc3e",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "Peugeot",
+      "id": "887068e1",
+      "models": 12,
       "source": "legacy"
     },
     {
@@ -415,15 +681,39 @@
       "source": "legacy"
     },
     {
+      "name": "Proton",
+      "id": "4fbe48dc",
+      "models": 7,
+      "source": "legacy"
+    },
+    {
       "name": "Ram",
       "id": "ram",
       "models": 6,
       "source": "legacy"
     },
     {
+      "name": "Renault",
+      "id": "8eb4a51c",
+      "models": 14,
+      "source": "legacy"
+    },
+    {
+      "name": "Rivian",
+      "id": "114e199c",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
       "name": "Rolls-Royce",
       "id": "rolls-royce",
       "models": 15,
+      "source": "legacy"
+    },
+    {
+      "name": "Saab",
+      "id": "486e9621",
+      "models": 4,
       "source": "legacy"
     },
     {
@@ -439,14 +729,81 @@
       "source": "legacy"
     },
     {
+      "name": "SEAT",
+      "id": "171e362c",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
+      "name": "Skoda",
+      "id": "69e41af5",
+      "models": 9,
+      "source": "legacy"
+    },
+    {
+      "name": "Smart",
+      "id": "acd381e6",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "SsangYong",
+      "id": "3714d3f5",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
       "name": "Subaru",
       "id": "subaru",
       "models": 29,
       "source": "legacy"
     },
     {
+      "name": "Suzuki",
+      "id": "5aa13218",
+      "models": 14,
+      "source": "legacy"
+    },
+    {
+      "name": "Tank",
+      "id": "e4419464",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "Tata",
+      "id": "d7676563",
+      "models": 8,
+      "source": "legacy"
+    },
+    {
       "name": "Tesla",
       "id": "tesla",
+      "models": 7,
+      "source": "legacy"
+    },
+    {
+      "name": "Toyota",
+      "id": "toyota_coverage",
+      "models": 101,
+      "source": "legacy",
+      "coverage": "mixed"
+    },
+    {
+      "name": "UAZ",
+      "id": "94042cfd",
+      "models": 4,
+      "source": "legacy"
+    },
+    {
+      "name": "Vauxhall",
+      "id": "ea48769a",
+      "models": 8,
+      "source": "legacy"
+    },
+    {
+      "name": "VinFast",
+      "id": "9635d3fa",
       "models": 7,
       "source": "legacy"
     },
@@ -461,44 +818,42 @@
       "id": "volvo",
       "models": 30,
       "source": "legacy"
+    },
+    {
+      "name": "Volvo Trucks",
+      "id": "4cca8cce",
+      "models": 5,
+      "source": "legacy"
+    },
+    {
+      "name": "Western Star (Trucks)",
+      "id": "24758ac5",
+      "models": 3,
+      "source": "legacy"
+    },
+    {
+      "name": "Wuling",
+      "id": "2afa160a",
+      "models": 8,
+      "source": "legacy"
+    },
+    {
+      "name": "XPeng",
+      "id": "e2bef5de",
+      "models": 7,
+      "source": "legacy"
+    },
+    {
+      "name": "Zeekr",
+      "id": "58bb6500",
+      "models": 5,
+      "source": "legacy"
     }
   ],
   "created_files": [
-    "acura.json",
-    "alfa_romeo.json",
-    "audi.json",
-    "bmw.json",
-    "buick.json",
-    "cadillac.json",
-    "chevrolet.json",
-    "chrysler.json",
-    "dodge.json",
-    "fiat.json",
-    "genesis.json",
-    "gmc.json",
-    "hummer.json",
-    "hyundai.json",
-    "infiniti.json",
-    "jaguar.json",
-    "jeep.json",
-    "kia.json",
-    "land_rover.json",
-    "lexus.json",
-    "mazda.json",
-    "mercedes-benz.json",
-    "mini.json",
-    "mitsubishi.json",
-    "nissan.json",
-    "oldsmobile.json",
-    "polestar.json",
-    "pontiac.json",
-    "porsche.json",
-    "saturn.json",
-    "scion.json",
-    "subaru.json",
-    "tesla.json",
-    "volkswagen.json",
-    "volvo.json"
+    "ford_coverage.json",
+    "honda_coverage.json",
+    "toyota_coverage.json"
   ],
   "fitment_index_backup": "index.fitment.json"
 }
