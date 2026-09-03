@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MakeIndex, MakeData, VehicleType, VehicleDomain, domainDataPath, FluidSpec } from '@/data/types';
+import { MakeIndex, MakeData, VehicleType, VehicleDomain, domainDataPath } from '@/data/types';
 import { isApiEnabled, fetchVehicleFluids } from '@/lib/fitmentApi';
 import {
   findQuickPickMake,
@@ -218,6 +218,7 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [loading, setLoading] = useState(false);
+  const [quickPickError, setQuickPickError] = useState<string | null>(null);
   const initializedRef = useRef(false);
 
   const basePath = domainDataPath(domain);
@@ -229,6 +230,7 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
     setSelectedMake('');
     setSelectedModel('');
     setSelectedType('');
+    setQuickPickError(null);
     initializedRef.current = false;
     onSelect(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -281,6 +283,7 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   }, [makes, initialMake, initialModel, initialType, onSelect]);
 
   function handleMakeChange(make: string) {
+    setQuickPickError(null);
     setSelectedMake(make);
     setSelectedModel('');
     setSelectedType('');
@@ -303,6 +306,7 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   }
 
   function handleModelChange(model: string) {
+    setQuickPickError(null);
     setSelectedModel(model);
     setSelectedType('');
     onSelect(null);
@@ -319,6 +323,7 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   }
 
   function handleTypeChange(typeName: string) {
+    setQuickPickError(null);
     setSelectedType(typeName);
 
     if (!makeData || !selectedModel || !typeName) {
@@ -356,10 +361,14 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   }
 
   function handleQuickPick(qp: PopularVehicle) {
+    setQuickPickError(null);
     const makeInfo = findQuickPickMake(makes, qp.make);
-    if (!makeInfo) return;
+    if (!makeInfo) {
+      setQuickPickError(`We couldn't find ${qp.make} in the current vehicle catalog.`);
+      return;
+    }
 
-    setSelectedMake(qp.make);
+    setSelectedMake(makeInfo.name);
     setSelectedModel('');
     setSelectedType('');
     setMakeData(null);
@@ -367,22 +376,29 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
     setLoading(true);
 
     fetch(`${basePath}${makeInfo.id}.json`)
-      .then(r => r.json())
+      .then(response => {
+        if (!response.ok) throw new Error(`Vehicle data request failed (${response.status})`);
+        return response.json();
+      })
       .then((data: MakeData) => {
         setMakeData(data);
-        setLoading(false);
 
-        // Find best model match
         const model = findQuickPickModel(data.models, qp.model);
-        if (model) {
-          setSelectedModel(model.name);
-          if (model.types.length === 1) {
-            setSelectedType(model.types[0].name);
-            onSelect({ make: data.make, model: model.name, type: model.types[0] });
-          }
+        if (!model) {
+          setQuickPickError(`We found ${qp.make}, but not ${qp.label} in the current catalog.`);
+          return;
+        }
+
+        setSelectedModel(model.name);
+        if (model.types.length === 1) {
+          setSelectedType(model.types[0].name);
+          onSelect({ make: data.make, model: model.name, type: model.types[0] });
         }
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setQuickPickError(`We couldn't load ${qp.label}. Please try the dropdowns instead.`);
+      })
+      .finally(() => setLoading(false));
   }
 
   const models = makeData?.models ?? [];
@@ -454,6 +470,12 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
           <div className="h-3 w-32 animate-shimmer" />
           <div className="h-3 w-20 animate-shimmer" />
         </div>
+      )}
+
+      {quickPickError && (
+        <p role="alert" className="mt-4 border border-red-500/50 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+          {quickPickError}
+        </p>
       )}
 
       {/* Popular vehicles quick-pick */}
