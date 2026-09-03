@@ -47,40 +47,34 @@ function readPublishedModels(url: URL): Array<{ name: string }> {
   });
 }
 
-test('all popular vehicles resolve against normalized LIVE make names', () => {
+test('all popular vehicles resolve against stable published make ids', () => {
   for (const quickPick of POPULAR_VEHICLES) {
-    assert.ok(findQuickPickMake(makes, quickPick.make), `${quickPick.label} should resolve its make`);
+    assert.ok(findQuickPickMake(makes, quickPick.makeId), `${quickPick.label} should resolve its make`);
   }
 });
 
-test('model matching selects the intended current family instead of the first substring', () => {
+test('model matching selects one explicit generation identity instead of a substring', () => {
   const fordModels = [
     model('F-150 (2015-2020)'),
     model('F-150 (2021-2025)'),
     model('F-150 Lightning (2022- )'),
   ];
 
-  assert.equal(findQuickPickModel(fordModels, 'F-150')?.name, 'F-150 (2021-2025)');
+  assert.equal(findQuickPickModel(fordModels, 'f-150:2021')?.name, 'F-150 (2021-2025)');
 });
 
-test('a newer closed generation outranks an older open-ended generation', () => {
-  const models = [model('Example (2010- )'), model('Example (2022-2025)')];
+test('an ambiguous or duplicate identity is not accepted', () => {
+  const duplicateModels = [model('Civic XI, FE/FL (2021- )'), model('Civic XI, FE/FL (2021-2025)')];
 
-  assert.equal(findQuickPickModel(models, 'Example')?.name, 'Example (2022-2025)');
-});
-
-test('an ambiguous Tesla query is not accepted', () => {
-  const teslaModels = [model('Model 3 (2017- )'), model('Model S (2011- )'), model('Model Y (2020- )')];
-
-  assert.equal(findQuickPickModel(teslaModels, 'Model'), undefined);
+  assert.equal(findQuickPickModel(duplicateModels, 'civic-xi-fe-slash-fl:2021'), undefined);
 });
 
 test('model matching excludes similarly named variants', () => {
   const fordModels = [model('F-150 Lightning (2022- )'), model('F-150 (2021-2025)')];
   const toyotaModels = [model('Camry Solara (2004-2008)'), model('Camry, XV80 (2024- )')];
 
-  assert.equal(findQuickPickModel(fordModels, 'F-150')?.name, 'F-150 (2021-2025)');
-  assert.equal(findQuickPickModel(toyotaModels, 'Camry')?.name, 'Camry, XV80 (2024- )');
+  assert.equal(findQuickPickModel(fordModels, 'f-150:2021')?.name, 'F-150 (2021-2025)');
+  assert.equal(findQuickPickModel(toyotaModels, 'camry-xv80:2024')?.name, 'Camry, XV80 (2024- )');
 });
 
 test('all popular vehicles resolve to the intended family in the published catalog', () => {
@@ -92,7 +86,7 @@ test('all popular vehicles resolve to the intended family in the published catal
     'Ram 1500': '1500 (2019- )',
     'Toyota Camry': 'Camry, XV80  (2024- )',
     'Toyota RAV4': 'RAV4, XA50 (2018- )',
-    'Honda Civic': 'Civic XI, FE (2021- )',
+    'Honda Civic': 'Civic XI, FE/FL (2021- )',
     'Honda CR-V': 'CR-V, RS3/RS4/RS5 (2022- )',
     'Tesla Model 3': 'Model 3 (2017- )',
     'Jeep Grand Cherokee': 'Grand Cherokee / Grand Cherokee L, WL (2021- )',
@@ -100,12 +94,12 @@ test('all popular vehicles resolve to the intended family in the published catal
   };
 
   for (const quickPick of POPULAR_VEHICLES) {
-    const make = findQuickPickMake(publishedMakes, quickPick.make);
+    const make = findQuickPickMake(publishedMakes, quickPick.makeId);
     assert.ok(make, `${quickPick.label} should resolve a published make`);
 
     const models = readPublishedModels(new URL(`${make.id}.json`, dataRoot));
     assert.equal(
-      findQuickPickModel(models, quickPick.model)?.name,
+      findQuickPickModel(models, quickPick.modelKey)?.name,
       expectedModels[quickPick.label],
       `${quickPick.label} should resolve the intended current family`,
     );

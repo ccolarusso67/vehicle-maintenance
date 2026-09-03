@@ -41,6 +41,27 @@ interface DropdownOption {
   sublabel?: string;
 }
 
+function isMakeData(value: unknown): value is MakeData {
+  if (!value || typeof value !== 'object' || !('make' in value) || !('models' in value)) return false;
+  if (typeof value.make !== 'string' || !Array.isArray(value.models)) return false;
+  return value.models.every(model => (
+    Boolean(model)
+    && typeof model === 'object'
+    && 'name' in model
+    && typeof model.name === 'string'
+    && 'types' in model
+    && Array.isArray(model.types)
+  ));
+}
+
+async function fetchMakeData(url: string): Promise<MakeData> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Vehicle data request failed (${response.status})`);
+  const data: unknown = await response.json();
+  if (!isMakeData(data)) throw new Error('Vehicle data response has an invalid shape');
+  return data;
+}
+
 function SearchableDropdown({
   label,
   placeholder,
@@ -220,16 +241,21 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   const [loading, setLoading] = useState(false);
   const [quickPickError, setQuickPickError] = useState<string | null>(null);
   const initializedRef = useRef(false);
+  const indexRequestRef = useRef(0);
+  const makeRequestRef = useRef(0);
 
   const basePath = domainDataPath(domain);
 
   // Reset state when domain changes
   useEffect(() => {
+    indexRequestRef.current += 1;
+    makeRequestRef.current += 1;
     setMakes([]);
     setMakeData(null);
     setSelectedMake('');
     setSelectedModel('');
     setSelectedType('');
+    setLoading(false);
     setQuickPickError(null);
     initializedRef.current = false;
     onSelect(null);
@@ -237,10 +263,11 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   }, [domain]);
 
   useEffect(() => {
+    const requestId = ++indexRequestRef.current;
     fetch(basePath + 'index.json')
       .then(r => r.json())
       .then((data: MakeIndex[]) => {
-        setMakes(data);
+        if (requestId === indexRequestRef.current) setMakes(data);
       })
       .catch(console.error);
   }, [basePath]);
@@ -255,12 +282,12 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
 
     setSelectedMake(makeInfo.name);
     setLoading(true);
+    const requestId = ++makeRequestRef.current;
 
-    fetch(`${basePath}${makeInfo.id}.json`)
-      .then(r => r.json())
-      .then((data: MakeData) => {
+    fetchMakeData(`${basePath}${makeInfo.id}.json`)
+      .then(data => {
+        if (requestId !== makeRequestRef.current) return;
         setMakeData(data);
-        setLoading(false);
 
         if (initialModel) {
           const model = data.models.find(m => m.name === initialModel || matchSlug(m.name, initialModel));
@@ -279,10 +306,15 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
           }
         }
       })
-      .catch(() => setLoading(false));
+      .catch(() => undefined)
+      .finally(() => {
+        if (requestId === makeRequestRef.current) setLoading(false);
+      });
   }, [makes, initialMake, initialModel, initialType, onSelect]);
 
   function handleMakeChange(make: string) {
+    const requestId = ++makeRequestRef.current;
+    setLoading(false);
     setQuickPickError(null);
     setSelectedMake(make);
     setSelectedModel('');
@@ -296,13 +328,15 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
     if (!makeInfo) return;
 
     setLoading(true);
-    fetch(`${basePath}${makeInfo.id}.json`)
-      .then(r => r.json())
-      .then((data: MakeData) => {
+    fetchMakeData(`${basePath}${makeInfo.id}.json`)
+      .then(data => {
+        if (requestId !== makeRequestRef.current) return;
         setMakeData(data);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => undefined)
+      .finally(() => {
+        if (requestId === makeRequestRef.current) setLoading(false);
+      });
   }
 
   function handleModelChange(model: string) {
@@ -361,10 +395,11 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   }
 
   function handleQuickPick(qp: PopularVehicle) {
+    const requestId = ++makeRequestRef.current;
     setQuickPickError(null);
-    const makeInfo = findQuickPickMake(makes, qp.make);
+    const makeInfo = findQuickPickMake(makes, qp.makeId);
     if (!makeInfo) {
-      setQuickPickError(`We couldn't find ${qp.make} in the current vehicle catalog.`);
+      setQuickPickError(`We couldn't find ${qp.makeLabel} in the current vehicle catalog.`);
       return;
     }
 
@@ -375,17 +410,14 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
     onSelect(null);
     setLoading(true);
 
-    fetch(`${basePath}${makeInfo.id}.json`)
-      .then(response => {
-        if (!response.ok) throw new Error(`Vehicle data request failed (${response.status})`);
-        return response.json();
-      })
-      .then((data: MakeData) => {
+    fetchMakeData(`${basePath}${makeInfo.id}.json`)
+      .then(data => {
+        if (requestId !== makeRequestRef.current) return;
         setMakeData(data);
 
-        const model = findQuickPickModel(data.models, qp.model);
+        const model = findQuickPickModel(data.models, qp.modelKey);
         if (!model) {
-          setQuickPickError(`We found ${qp.make}, but not ${qp.label} in the current catalog.`);
+          setQuickPickError(`We found ${qp.makeLabel}, but not ${qp.label} in the current catalog.`);
           return;
         }
 
@@ -396,9 +428,13 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
         }
       })
       .catch(() => {
-        setQuickPickError(`We couldn't load ${qp.label}. Please try the dropdowns instead.`);
+        if (requestId === makeRequestRef.current) {
+          setQuickPickError(`We couldn't load ${qp.label}. Please try the dropdowns instead.`);
+        }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (requestId === makeRequestRef.current) setLoading(false);
+      });
   }
 
   const models = makeData?.models ?? [];
