@@ -1,8 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MakeIndex, MakeData, VehicleType, VehicleDomain, domainDataPath, FluidSpec } from '@/data/types';
+import { MakeIndex, MakeData, VehicleType, VehicleDomain, domainDataPath } from '@/data/types';
 import { isApiEnabled, fetchVehicleFluids } from '@/lib/fitmentApi';
+import {
+  findQuickPickMake,
+  findQuickPickModel,
+  POPULAR_VEHICLES,
+  type PopularVehicle,
+} from '@/lib/vehicleQuickPick';
 
 /** Strip region suffix like "(USA / CAN)" or "(USA)" from make names */
 function cleanMakeName(name: string): string {
@@ -35,18 +41,34 @@ interface DropdownOption {
   sublabel?: string;
 }
 
-const POPULAR_VEHICLES = [
-  { make: 'Ford (USA)', model: 'F-150', label: 'Ford F-150' },
-  { make: 'Chevrolet (USA / CAN)', model: 'Silverado', label: 'Chevy Silverado' },
-  { make: 'Ram', model: '1500', label: 'Ram 1500' },
-  { make: 'Toyota (USA / CAN)', model: 'Camry', label: 'Toyota Camry' },
-  { make: 'Toyota (USA / CAN)', model: 'RAV4', label: 'Toyota RAV4' },
-  { make: 'Honda (USA / CAN)', model: 'Civic', label: 'Honda Civic' },
-  { make: 'Honda (USA / CAN)', model: 'CR-V', label: 'Honda CR-V' },
-  { make: 'Tesla (USA)', model: 'Model', label: 'Tesla Model 3/Y' },
-  { make: 'Jeep (USA / CAN)', model: 'Grand Cherokee', label: 'Jeep Grand Cherokee' },
-  { make: 'Nissan (USA / CAN)', model: 'Rogue', label: 'Nissan Rogue' },
-];
+function isMakeData(value: unknown): value is MakeData {
+  if (!value || typeof value !== 'object' || !('make' in value) || !('models' in value)) return false;
+  if (typeof value.make !== 'string' || !Array.isArray(value.models)) return false;
+  return value.models.every(model => (
+    Boolean(model)
+    && typeof model === 'object'
+    && 'name' in model
+    && typeof model.name === 'string'
+    && 'types' in model
+    && Array.isArray(model.types)
+    && model.types.every((type: unknown) => (
+      type !== null
+      && typeof type === 'object'
+      && 'name' in type
+      && typeof type.name === 'string'
+      && 'fluids' in type
+      && (Array.isArray(type.fluids) || typeof type.fluids === 'number')
+    ))
+  ));
+}
+
+async function fetchMakeData(url: string): Promise<MakeData> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Vehicle data request failed (${response.status})`);
+  const data: unknown = await response.json();
+  if (!isMakeData(data)) throw new Error('Vehicle data response has an invalid shape');
+  return data;
+}
 
 function SearchableDropdown({
   label,
@@ -225,27 +247,35 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [loading, setLoading] = useState(false);
+  const [quickPickError, setQuickPickError] = useState<string | null>(null);
   const initializedRef = useRef(false);
+  const indexRequestRef = useRef(0);
+  const makeRequestRef = useRef(0);
 
   const basePath = domainDataPath(domain);
 
   // Reset state when domain changes
   useEffect(() => {
+    indexRequestRef.current += 1;
+    makeRequestRef.current += 1;
     setMakes([]);
     setMakeData(null);
     setSelectedMake('');
     setSelectedModel('');
     setSelectedType('');
+    setLoading(false);
+    setQuickPickError(null);
     initializedRef.current = false;
     onSelect(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [domain]);
 
   useEffect(() => {
+    const requestId = ++indexRequestRef.current;
     fetch(basePath + 'index.json')
       .then(r => r.json())
       .then((data: MakeIndex[]) => {
-        setMakes(data);
+        if (requestId === indexRequestRef.current) setMakes(data);
       })
       .catch(console.error);
   }, [basePath]);
@@ -260,12 +290,12 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
 
     setSelectedMake(makeInfo.name);
     setLoading(true);
+    const requestId = ++makeRequestRef.current;
 
-    fetch(`${basePath}${makeInfo.id}.json`)
-      .then(r => r.json())
-      .then((data: MakeData) => {
+    fetchMakeData(`${basePath}${makeInfo.id}.json`)
+      .then(data => {
+        if (requestId !== makeRequestRef.current) return;
         setMakeData(data);
-        setLoading(false);
 
         if (initialModel) {
           const model = data.models.find(m => m.name === initialModel || matchSlug(m.name, initialModel));
@@ -284,10 +314,16 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
           }
         }
       })
-      .catch(() => setLoading(false));
+      .catch(() => undefined)
+      .finally(() => {
+        if (requestId === makeRequestRef.current) setLoading(false);
+      });
   }, [makes, initialMake, initialModel, initialType, onSelect]);
 
   function handleMakeChange(make: string) {
+    const requestId = ++makeRequestRef.current;
+    setLoading(false);
+    setQuickPickError(null);
     setSelectedMake(make);
     setSelectedModel('');
     setSelectedType('');
@@ -300,16 +336,21 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
     if (!makeInfo) return;
 
     setLoading(true);
-    fetch(`${basePath}${makeInfo.id}.json`)
-      .then(r => r.json())
-      .then((data: MakeData) => {
+    fetchMakeData(`${basePath}${makeInfo.id}.json`)
+      .then(data => {
+        if (requestId !== makeRequestRef.current) return;
         setMakeData(data);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => undefined)
+      .finally(() => {
+        if (requestId === makeRequestRef.current) setLoading(false);
+      });
   }
 
   function handleModelChange(model: string) {
+    makeRequestRef.current += 1;
+    setLoading(false);
+    setQuickPickError(null);
     setSelectedModel(model);
     setSelectedType('');
     onSelect(null);
@@ -326,6 +367,9 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
   }
 
   function handleTypeChange(typeName: string) {
+    const requestId = ++makeRequestRef.current;
+    setLoading(false);
+    setQuickPickError(null);
     setSelectedType(typeName);
 
     if (!makeData || !selectedModel || !typeName) {
@@ -344,6 +388,7 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
         setLoading(true);
         fetchVehicleFluids(domain, makeData.make, selectedModel, typeName)
           .then(fluids => {
+            if (requestId !== makeRequestRef.current) return;
             if (fluids && fluids.length > 0) {
               const enrichedType: VehicleType = { name: typeName, fluids };
               onSelect({ make: makeData.make, model: selectedModel, type: enrichedType });
@@ -353,43 +398,60 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
             }
           })
           .catch(() => {
-            onSelect({ make: makeData.make, model: selectedModel, type });
+            if (requestId === makeRequestRef.current) {
+              onSelect({ make: makeData.make, model: selectedModel, type });
+            }
           })
-          .finally(() => setLoading(false));
+          .finally(() => {
+            if (requestId === makeRequestRef.current) setLoading(false);
+          });
       } else {
         onSelect({ make: makeData.make, model: selectedModel, type });
       }
     }
   }
 
-  function handleQuickPick(qp: typeof POPULAR_VEHICLES[0]) {
-    const makeInfo = makes.find(m => m.name === qp.make);
-    if (!makeInfo) return;
+  function handleQuickPick(qp: PopularVehicle) {
+    const requestId = ++makeRequestRef.current;
+    setQuickPickError(null);
+    const makeInfo = findQuickPickMake(makes, qp.makeId);
+    if (!makeInfo) {
+      setQuickPickError(`We couldn't find ${qp.makeLabel} in the current vehicle catalog.`);
+      return;
+    }
 
-    setSelectedMake(qp.make);
+    setSelectedMake(makeInfo.name);
     setSelectedModel('');
     setSelectedType('');
     setMakeData(null);
     onSelect(null);
     setLoading(true);
 
-    fetch(`${basePath}${makeInfo.id}.json`)
-      .then(r => r.json())
-      .then((data: MakeData) => {
+    fetchMakeData(`${basePath}${makeInfo.id}.json`)
+      .then(data => {
+        if (requestId !== makeRequestRef.current) return;
         setMakeData(data);
-        setLoading(false);
 
-        // Find best model match
-        const model = data.models.find(m => m.name.includes(qp.model));
-        if (model) {
-          setSelectedModel(model.name);
-          if (model.types.length === 1) {
-            setSelectedType(model.types[0].name);
-            onSelect({ make: data.make, model: model.name, type: model.types[0] });
-          }
+        const model = findQuickPickModel(data.models, qp.modelKey);
+        if (!model) {
+          setQuickPickError(`We found ${qp.makeLabel}, but not ${qp.label} in the current catalog.`);
+          return;
+        }
+
+        setSelectedModel(model.name);
+        if (model.types.length === 1) {
+          setSelectedType(model.types[0].name);
+          onSelect({ make: data.make, model: model.name, type: model.types[0] });
         }
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        if (requestId === makeRequestRef.current) {
+          setQuickPickError(`We couldn't load ${qp.label}. Please try the dropdowns instead.`);
+        }
+      })
+      .finally(() => {
+        if (requestId === makeRequestRef.current) setLoading(false);
+      });
   }
 
   const models = makeData?.models ?? [];
@@ -461,6 +523,12 @@ export default function VehicleSelector({ domain, onSelect, initialMake, initial
           <div className="h-3 w-32 animate-shimmer" />
           <div className="h-3 w-20 animate-shimmer" />
         </div>
+      )}
+
+      {quickPickError && (
+        <p role="alert" className="mt-4 border border-red-500/50 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+          {quickPickError}
+        </p>
       )}
 
       {/* Popular vehicles quick-pick */}
